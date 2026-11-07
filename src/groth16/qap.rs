@@ -16,6 +16,7 @@ use rayon::prelude::*;
 /// The evaluations of `A * z`, `B * z` and `C * z` over the domain, i.e. their
 /// coefficients in the Lagrange basis, zero-padded to the domain size.
 #[inline]
+#[allow(clippy::type_complexity)]
 pub fn lagrange_of_dense_vec<F: PrimeField>(
     matrices: &ConstraintMatrices<F>,
     dense_vec: &[F],
@@ -31,19 +32,19 @@ pub fn lagrange_of_dense_vec<F: PrimeField>(
     cfg_iter_mut!(a_lagrg[..num_constraints])
         .zip(cfg_iter!(&matrices.a))
         .for_each(|(a_lagrg_i, a_row)| {
-            *a_lagrg_i = inner_product_sparse_f_dense_f(&a_row, dense_vec);
+            *a_lagrg_i = inner_product_sparse_f_dense_f(a_row, dense_vec);
         });
 
     cfg_iter_mut!(b_lagrg[..num_constraints])
         .zip(cfg_iter!(&matrices.b))
         .for_each(|(b_lagrg_i, b_row)| {
-            *b_lagrg_i = inner_product_sparse_f_dense_f(&b_row, dense_vec);
+            *b_lagrg_i = inner_product_sparse_f_dense_f(b_row, dense_vec);
         });
 
     cfg_iter_mut!(c_lagrg[..num_constraints])
         .zip(cfg_iter!(&matrices.c))
         .for_each(|(c_lagrg_i, c_row)| {
-            *c_lagrg_i = inner_product_sparse_f_dense_f(&c_row, dense_vec);
+            *c_lagrg_i = inner_product_sparse_f_dense_f(c_row, dense_vec);
         });
 
     Ok((a_lagrg, b_lagrg, c_lagrg))
@@ -51,7 +52,10 @@ pub fn lagrange_of_dense_vec<F: PrimeField>(
 
 /// A matrix by columns: for each of `num_columns` variables `j`, the pairs
 /// `(row, matrix[row][j])`.
-pub fn matrix_columns<F: PrimeField>(matrix: &Matrix<F>, num_columns: usize) -> Vec<Vec<(usize, F)>> {
+pub fn matrix_columns<F: PrimeField>(
+    matrix: &Matrix<F>,
+    num_columns: usize,
+) -> Vec<Vec<(usize, F)>> {
     let mut cols: Vec<Vec<(usize, F)>> = vec![vec![]; num_columns];
     matrix.iter().enumerate().for_each(|(i, row)| {
         row.iter().for_each(|(val, j)| cols[*j].push((i, *val)));
@@ -67,6 +71,7 @@ pub fn matrix_columns<F: PrimeField>(matrix: &Matrix<F>, num_columns: usize) -> 
 /// With `z` a change to the assignment, these are the changes to the Lagrange
 /// coefficients (the paper's `Delta^A` and `Delta^B`). The dense counterpart
 /// is [`lagrange_of_dense_vec`].
+#[allow(clippy::type_complexity)]
 pub fn lagrange_of_sparse_vec<F: PrimeField>(
     a_cols: &[Vec<(usize, F)>],
     b_cols: &[Vec<(usize, F)>],
@@ -235,7 +240,7 @@ pub fn tau_powers_field_lifted<F: PrimeField, D: EvaluationDomain<F>>(
     delta_inverse: F,
 ) -> Result<Vec<F>, SynthesisError> {
     let scalars = cfg_into_iter!(0..max_power)
-        .map(|i| vanish_tau * &delta_inverse * &tau.pow([i as u64]))
+        .map(|i| vanish_tau * delta_inverse * tau.pow([i as u64]))
         .collect::<Vec<_>>();
     Ok(scalars)
 }
@@ -247,7 +252,7 @@ pub fn tau_powers_field<F: PrimeField, D: EvaluationDomain<F>>(
     delta_inverse: F,
 ) -> Result<Vec<F>, SynthesisError> {
     let scalars = cfg_into_iter!(0..max_power)
-        .map(|i| delta_inverse * &tau.pow([i as u64]))
+        .map(|i| delta_inverse * tau.pow([i as u64]))
         .collect::<Vec<_>>();
     Ok(scalars)
 }

@@ -19,7 +19,14 @@ use dynark::{
 type E = Bls12_381;
 type F = <E as Pairing>::ScalarField;
 
-fn setup(log_n: usize) -> (GeneralEvaluationDomain<F>, dynark::ProvingKey<E>, Vec<F>, Vec<F>) {
+fn setup(
+    log_n: usize,
+) -> (
+    GeneralEvaluationDomain<F>,
+    dynark::ProvingKey<E>,
+    Vec<F>,
+    Vec<F>,
+) {
     let mut rng = StdRng::seed_from_u64(log_n as u64);
     let n = 1 << log_n;
     let (matrices, ..) = generate_matrices::<E>(n, 1, n - 1, &mut rng);

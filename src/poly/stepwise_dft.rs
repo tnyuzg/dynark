@@ -94,7 +94,7 @@ impl<E: Pairing> CustomParaFFT<E> {
 
         let mut inv_n = f_one;
         for _ in 0..log_n {
-            inv_n = inv_n * f_two.inverse().unwrap();
+            inv_n *= f_two.inverse().unwrap();
         }
         let len_thread = n / N_THREADS;
         Self {
@@ -118,8 +118,8 @@ pub fn sqrt_fft<E: Pairing>(fft_info: &CustomParaFFT<E>, x: &mut FFTVectorTypes<
     // }
     let rows_log = fft_info.log_n >> 1;
     let cols_log = fft_info.log_n - rows_log;
-    let rows_cnt:usize = 1 << rows_log;
-    let cols_cnt:usize = 1 << cols_log;
+    let rows_cnt: usize = 1 << rows_log;
+    let cols_cnt: usize = 1 << cols_log;
     type D<F> = GeneralEvaluationDomain<F>;
     let rows_domain: GeneralEvaluationDomain<<E as Pairing>::ScalarField> = D::new(rows_cnt)
         .ok_or(SynthesisError::PolynomialDegreeTooLarge)
@@ -320,11 +320,11 @@ enum FftPhase {
     /// phase1
     ColFFT,
     /// phase2
-    TRANSPOSE,
+    Transpose,
     /// phase3
     RowFFT,
     /// final transpose
-    SufTranspose
+    SufTranspose,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -337,13 +337,13 @@ pub struct SqrtFftStatus {
     /// Current Level of phase
     lev: usize,
 }
-impl SqrtFftStatus{
+impl SqrtFftStatus {
     /// The status at the start of a DFT, or of an inverse DFT if `is_rev`.
-    pub fn new(is_rev: bool)->Self{
-        Self{
+    pub fn new(is_rev: bool) -> Self {
+        Self {
             is_rev,
-            phase:FftPhase::PreTranspose,
-            lev:0
+            phase: FftPhase::PreTranspose,
+            lev: 0,
         }
     }
 }
@@ -363,56 +363,58 @@ pub enum FFTVectorTypes<E: Pairing> {
 pub fn sqrt_fft_fw_field<E: Pairing>(
     sub_domain: &GeneralEvaluationDomain<<E as Pairing>::ScalarField>,
     sqrt_fft_info: &CustomParaFFT<E>,
-    xf: &mut Vec<E::ScalarField>,
+    xf: &mut [E::ScalarField],
     status: &mut SqrtFftStatus,
-    mem_for_transpose: &mut Vec<E::ScalarField>,
+    mem_for_transpose: &mut [E::ScalarField],
     steps: usize,
 ) -> (bool, usize) {
     let is_rev = status.is_rev;
     let haf_log = sqrt_fft_info.log_n >> 1;
     let mx_step: usize = 1 << haf_log;
     let mut steps_rem = steps;
-    while steps_rem >0{
+    while steps_rem > 0 {
         match status.phase {
-            FftPhase::PreTranspose | FftPhase::SufTranspose =>{
+            FftPhase::PreTranspose | FftPhase::SufTranspose => {
                 let unit_stp = std::cmp::min(mx_step, STEP_SQRT_COPY);
-                if status.lev < (1<< haf_log){
-                    let cnt_stp = std::cmp::min(steps_rem, (mx_step -status.lev) /unit_stp);
+                if status.lev < (1 << haf_log) {
+                    let cnt_stp = std::cmp::min(steps_rem, (mx_step - status.lev) / unit_stp);
                     let stp = cnt_stp * unit_stp;
                     steps_rem -= cnt_stp;
-                    let l = status.lev  << haf_log;
-                    let r = (status.lev+ stp) << haf_log;
-                    (l..r).into_par_iter().zip(mem_for_transpose[l..r].par_iter_mut()).for_each(|(i,v)|{
-                        let r = i >> haf_log;
-                        let c = i&((1<<haf_log)-1);
-                        *v = xf[(c << haf_log) | r];
-                    });
+                    let l = status.lev << haf_log;
+                    let r = (status.lev + stp) << haf_log;
+                    (l..r)
+                        .into_par_iter()
+                        .zip(mem_for_transpose[l..r].par_iter_mut())
+                        .for_each(|(i, v)| {
+                            let r = i >> haf_log;
+                            let c = i & ((1 << haf_log) - 1);
+                            *v = xf[(c << haf_log) | r];
+                        });
                     status.lev += stp;
-                }
-                else{
-                    let cnt_stp = std::cmp::min(steps_rem, ((mx_step<<1) -status.lev) /unit_stp);
+                } else {
+                    let cnt_stp =
+                        std::cmp::min(steps_rem, ((mx_step << 1) - status.lev) / unit_stp);
                     let stp = cnt_stp * unit_stp;
                     steps_rem -= cnt_stp;
-                    let l = (status.lev-(1<<haf_log))  << haf_log;
-                    let r = (status.lev+stp-(1<<haf_log))  << haf_log;
+                    let l = (status.lev - (1 << haf_log)) << haf_log;
+                    let r = (status.lev + stp - (1 << haf_log)) << haf_log;
                     xf[l..r].copy_from_slice(&mem_for_transpose[l..r]);
                     status.lev += stp;
                 }
-                if status.lev >= 2<<haf_log{
-                    if status.phase == FftPhase::PreTranspose{
+                if status.lev >= 2 << haf_log {
+                    if status.phase == FftPhase::PreTranspose {
                         status.lev = 0;
                         status.phase = FftPhase::ColFFT;
-                    }
-                    else{
+                    } else {
                         status.lev = 0;
                         status.phase = FftPhase::PreTranspose;
                         return (true, steps_rem);
                     }
                 }
-            }
+            },
             FftPhase::ColFFT => {
                 let unit_stp = std::cmp::min(mx_step, STEP_SQRT_FFT);
-                let cnt_stp = std::cmp::min(steps_rem, (mx_step-status.lev)/unit_stp);
+                let cnt_stp = std::cmp::min(steps_rem, (mx_step - status.lev) / unit_stp);
                 let stp = cnt_stp * unit_stp;
                 steps_rem -= cnt_stp;
                 let haf_info = CustomParaFFT::<E>::new(1 << haf_log, sub_domain.group_gen());
@@ -427,36 +429,39 @@ pub fn sqrt_fft_fw_field<E: Pairing>(
                     });
                 status.lev += stp;
                 if status.lev >= 1 << haf_log {
-                    status.phase = FftPhase::TRANSPOSE;
+                    status.phase = FftPhase::Transpose;
                     status.lev = 0;
                 }
             },
-            FftPhase::TRANSPOSE => {
+            FftPhase::Transpose => {
                 let unit_stp = std::cmp::min(mx_step, STEP_SQRT_TRANSPOSE);
-                if status.lev < (1<< haf_log){
-                    let cnt_stp = std::cmp::min(steps_rem, (mx_step-status.lev)/unit_stp);
+                if status.lev < (1 << haf_log) {
+                    let cnt_stp = std::cmp::min(steps_rem, (mx_step - status.lev) / unit_stp);
                     let stp = cnt_stp * unit_stp;
                     steps_rem -= cnt_stp;
-                    let l = status.lev  << haf_log;
-                    let r = (status.lev+ stp) << haf_log;
-                    (l..r).into_par_iter().zip(mem_for_transpose[l..r].par_iter_mut()).for_each(|(i,v)|{
-                        let r = i >> haf_log;
-                        let c = i&((1<<haf_log)-1);
-                        *v = xf[(c << haf_log) | r] * 
-                            if status.is_rev {
-                                sqrt_fft_info.omega_invs[r * c]
-                            } else {
-                                sqrt_fft_info.omegas[r * c]
-                            }
-                    });
+                    let l = status.lev << haf_log;
+                    let r = (status.lev + stp) << haf_log;
+                    (l..r)
+                        .into_par_iter()
+                        .zip(mem_for_transpose[l..r].par_iter_mut())
+                        .for_each(|(i, v)| {
+                            let r = i >> haf_log;
+                            let c = i & ((1 << haf_log) - 1);
+                            *v = xf[(c << haf_log) | r]
+                                * if status.is_rev {
+                                    sqrt_fft_info.omega_invs[r * c]
+                                } else {
+                                    sqrt_fft_info.omegas[r * c]
+                                }
+                        });
                     status.lev += stp;
-                }
-                else{
-                    let cnt_stp = std::cmp::min(steps_rem, ((mx_step<<1)-status.lev)/unit_stp);
+                } else {
+                    let cnt_stp =
+                        std::cmp::min(steps_rem, ((mx_step << 1) - status.lev) / unit_stp);
                     let stp = cnt_stp * unit_stp;
                     steps_rem -= cnt_stp;
-                    let l = (status.lev-(1<<haf_log))  << haf_log;
-                    let r = (status.lev+stp-(1<<haf_log))  << haf_log;
+                    let l = (status.lev - (1 << haf_log)) << haf_log;
+                    let r = (status.lev + stp - (1 << haf_log)) << haf_log;
                     xf[l..r].copy_from_slice(&mem_for_transpose[l..r]);
                     status.lev += stp;
                     if status.lev >= 2 << haf_log {
@@ -467,7 +472,7 @@ pub fn sqrt_fft_fw_field<E: Pairing>(
             },
             FftPhase::RowFFT => {
                 let unit_stp = std::cmp::min(mx_step, STEP_SQRT_FFT);
-                let cnt_stp = std::cmp::min(steps_rem, (mx_step - status.lev)/unit_stp);
+                let cnt_stp = std::cmp::min(steps_rem, (mx_step - status.lev) / unit_stp);
                 let stp = cnt_stp * unit_stp;
                 steps_rem -= cnt_stp;
                 let haf_info = CustomParaFFT::<E>::new(1 << haf_log, sub_domain.group_gen());
@@ -488,64 +493,65 @@ pub fn sqrt_fft_fw_field<E: Pairing>(
             },
         }
     }
-    return (false, 0);
+    (false, 0)
 }
-
 
 /// a step of sbs FFT for g1
 pub fn sqrt_fft_fw_g1<E: Pairing>(
     sub_domain: &GeneralEvaluationDomain<<E as Pairing>::ScalarField>,
     sqrt_fft_info: &CustomParaFFT<E>,
-    xg1: &mut Vec<E::G1>,
+    xg1: &mut [E::G1],
     status: &mut SqrtFftStatus,
-    mem_for_transpose: &mut Vec<E::G1>,
-    steps: usize
+    mem_for_transpose: &mut [E::G1],
+    steps: usize,
 ) -> (bool, usize) {
     let is_rev = status.is_rev;
     let haf_log = sqrt_fft_info.log_n >> 1;
-    let mx_step: usize = 1<<haf_log;
+    let mx_step: usize = 1 << haf_log;
     let mut steps_rem = steps;
-    while steps_rem >0{
+    while steps_rem > 0 {
         match status.phase {
-            FftPhase::PreTranspose | FftPhase::SufTranspose =>{
+            FftPhase::PreTranspose | FftPhase::SufTranspose => {
                 let unit_stp = std::cmp::min(mx_step, STEP_SQRT_COPY);
-                if status.lev < (1<< haf_log){
-                    let cnt_stp = std::cmp::min(steps_rem, (mx_step -status.lev) /unit_stp);
+                if status.lev < (1 << haf_log) {
+                    let cnt_stp = std::cmp::min(steps_rem, (mx_step - status.lev) / unit_stp);
                     let stp = cnt_stp * unit_stp;
                     steps_rem -= cnt_stp;
-                    let l = status.lev  << haf_log;
-                    let r = (status.lev+ stp) << haf_log;
-                    (l..r).into_par_iter().zip(mem_for_transpose[l..r].par_iter_mut()).for_each(|(i,v)|{
-                        let r = i >> haf_log;
-                        let c = i&((1<<haf_log)-1);
-                        *v = xg1[(c << haf_log) | r];
-                    });
+                    let l = status.lev << haf_log;
+                    let r = (status.lev + stp) << haf_log;
+                    (l..r)
+                        .into_par_iter()
+                        .zip(mem_for_transpose[l..r].par_iter_mut())
+                        .for_each(|(i, v)| {
+                            let r = i >> haf_log;
+                            let c = i & ((1 << haf_log) - 1);
+                            *v = xg1[(c << haf_log) | r];
+                        });
                     status.lev += stp;
-                }
-                else{
-                    let cnt_stp = std::cmp::min(steps_rem, ((mx_step<<1) -status.lev) /unit_stp);
+                } else {
+                    let cnt_stp =
+                        std::cmp::min(steps_rem, ((mx_step << 1) - status.lev) / unit_stp);
                     let stp = cnt_stp * unit_stp;
                     steps_rem -= cnt_stp;
-                    let l = (status.lev-(1<<haf_log))  << haf_log;
-                    let r = (status.lev+stp-(1<<haf_log))  << haf_log;
+                    let l = (status.lev - (1 << haf_log)) << haf_log;
+                    let r = (status.lev + stp - (1 << haf_log)) << haf_log;
                     xg1[l..r].copy_from_slice(&mem_for_transpose[l..r]);
                     status.lev += stp;
                 }
-                if status.lev >= 2<<haf_log{
-                    if status.phase == FftPhase::PreTranspose{
+                if status.lev >= 2 << haf_log {
+                    if status.phase == FftPhase::PreTranspose {
                         status.lev = 0;
                         status.phase = FftPhase::ColFFT;
-                    }
-                    else{
+                    } else {
                         status.lev = 0;
                         status.phase = FftPhase::PreTranspose;
                         return (true, steps_rem);
                     }
                 }
-            }
+            },
             FftPhase::ColFFT => {
                 let unit_stp = std::cmp::min(mx_step, STEP_SQRT_FFT);
-                let cnt_stp = std::cmp::min(steps_rem, (mx_step - status.lev)/unit_stp);
+                let cnt_stp = std::cmp::min(steps_rem, (mx_step - status.lev) / unit_stp);
                 let stp = cnt_stp * unit_stp;
                 steps_rem -= cnt_stp;
                 let haf_info = CustomParaFFT::<E>::new(1 << haf_log, sub_domain.group_gen());
@@ -560,36 +566,39 @@ pub fn sqrt_fft_fw_g1<E: Pairing>(
                     });
                 status.lev += stp;
                 if status.lev >= 1 << haf_log {
-                    status.phase = FftPhase::TRANSPOSE;
+                    status.phase = FftPhase::Transpose;
                     status.lev = 0;
                 }
             },
-            FftPhase::TRANSPOSE => {
+            FftPhase::Transpose => {
                 let unit_stp = std::cmp::min(mx_step, STEP_SQRT_TRANSPOSE);
-                if status.lev < (1<< haf_log){
-                    let cnt_stp = std::cmp::min(steps_rem, (mx_step-status.lev)/unit_stp);
+                if status.lev < (1 << haf_log) {
+                    let cnt_stp = std::cmp::min(steps_rem, (mx_step - status.lev) / unit_stp);
                     let stp = cnt_stp * unit_stp;
                     steps_rem -= cnt_stp;
-                    let l = status.lev  << haf_log;
-                    let r = (status.lev+ stp) << haf_log;
-                    (l..r).into_par_iter().zip(mem_for_transpose[l..r].par_iter_mut()).for_each(|(i,v)|{
-                        let r = i >> haf_log;
-                        let c = i&((1<<haf_log)-1);
-                        *v = xg1[(c << haf_log) | r] * 
-                            if status.is_rev {
-                                sqrt_fft_info.omega_invs[r * c]
-                            } else {
-                                sqrt_fft_info.omegas[r * c]
-                            }
-                    });
+                    let l = status.lev << haf_log;
+                    let r = (status.lev + stp) << haf_log;
+                    (l..r)
+                        .into_par_iter()
+                        .zip(mem_for_transpose[l..r].par_iter_mut())
+                        .for_each(|(i, v)| {
+                            let r = i >> haf_log;
+                            let c = i & ((1 << haf_log) - 1);
+                            *v = xg1[(c << haf_log) | r]
+                                * if status.is_rev {
+                                    sqrt_fft_info.omega_invs[r * c]
+                                } else {
+                                    sqrt_fft_info.omegas[r * c]
+                                }
+                        });
                     status.lev += stp;
-                }
-                else{
-                    let cnt_stp = std::cmp::min(steps_rem, ((mx_step<<1)-status.lev)/unit_stp);
+                } else {
+                    let cnt_stp =
+                        std::cmp::min(steps_rem, ((mx_step << 1) - status.lev) / unit_stp);
                     let stp = cnt_stp * unit_stp;
                     steps_rem -= cnt_stp;
-                    let l = (status.lev-(1<<haf_log))  << haf_log;
-                    let r = (status.lev+stp-(1<<haf_log))  << haf_log;
+                    let l = (status.lev - (1 << haf_log)) << haf_log;
+                    let r = (status.lev + stp - (1 << haf_log)) << haf_log;
                     xg1[l..r].copy_from_slice(&mem_for_transpose[l..r]);
                     status.lev += stp;
                     if status.lev >= 2 << haf_log {
@@ -600,7 +609,7 @@ pub fn sqrt_fft_fw_g1<E: Pairing>(
             },
             FftPhase::RowFFT => {
                 let unit_stp = std::cmp::min(mx_step, STEP_SQRT_FFT);
-                let cnt_stp = std::cmp::min(steps_rem, (mx_step-status.lev)/unit_stp);
+                let cnt_stp = std::cmp::min(steps_rem, (mx_step - status.lev) / unit_stp);
                 let stp = cnt_stp * unit_stp;
                 steps_rem -= cnt_stp;
                 let haf_info = CustomParaFFT::<E>::new(1 << haf_log, sub_domain.group_gen());
@@ -621,6 +630,5 @@ pub fn sqrt_fft_fw_g1<E: Pairing>(
             },
         }
     }
-    return (false, 0);
+    (false, 0)
 }
-

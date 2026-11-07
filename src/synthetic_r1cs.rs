@@ -11,7 +11,8 @@ use ark_std::rand::{seq::SliceRandom, Rng};
 use rand::seq::index::sample;
 
 /// The constraint matrices, and the coefficients `(k_a, k_b, c_a, c_b)` of each row.
-pub fn generate_matrices<E:Pairing>(
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+pub fn generate_matrices<E: Pairing>(
     num_constraint: usize,
     num_instance: usize,
     num_witness: usize,
@@ -21,23 +22,23 @@ pub fn generate_matrices<E:Pairing>(
     Vec<E::ScalarField>,
     Vec<E::ScalarField>,
     Vec<E::ScalarField>,
-    Vec<E::ScalarField>
-    ){
+    Vec<E::ScalarField>,
+) {
     assert_eq!(
         num_constraint,
         num_instance + num_witness,
         "num_constraint must equal num_instance + num_witness"
     );
-    
+
     let m = num_constraint >> 1;
     let mut a: Matrix<E::ScalarField> = vec![Vec::new(); num_constraint];
     let mut b: Matrix<E::ScalarField> = vec![Vec::new(); num_constraint];
     let mut c = a.clone();
-    let mut ka:Vec<E::ScalarField> = Vec::new();
-    let mut kb:Vec<E::ScalarField> = Vec::new();
-    let mut ca:Vec<E::ScalarField> = Vec::new();
-    let mut cb:Vec<E::ScalarField> = Vec::new();
-    (1..m).into_iter().for_each(|i|{
+    let mut ka: Vec<E::ScalarField> = Vec::new();
+    let mut kb: Vec<E::ScalarField> = Vec::new();
+    let mut ca: Vec<E::ScalarField> = Vec::new();
+    let mut cb: Vec<E::ScalarField> = Vec::new();
+    (1..m).for_each(|i| {
         let k_a: <E as Pairing>::ScalarField = E::ScalarField::rand(rng);
         let k_b: <E as Pairing>::ScalarField = E::ScalarField::rand(rng);
         let c_a: <E as Pairing>::ScalarField = E::ScalarField::rand(rng);
@@ -50,13 +51,13 @@ pub fn generate_matrices<E:Pairing>(
         a[i].push((c_a, 0));
         b[i].push((k_b, i));
         b[i].push((c_b, 0));
-        c[i].push((E::ScalarField::one(), i+m));
+        c[i].push((E::ScalarField::one(), i + m));
         ka.push(k_a);
         kb.push(k_b);
         ca.push(c_a);
         cb.push(c_b);
     });
-    
+
     (
         ConstraintMatrices {
             num_instance_variables: num_instance,
@@ -69,40 +70,41 @@ pub fn generate_matrices<E:Pairing>(
             b,
             c,
         },
-        ka, kb, ca, cb
+        ka,
+        kb,
+        ca,
+        cb,
     )
 }
 
 /// A satisfying assignment with random `z_i` for `0 < i < m`.
-pub fn generate_instance_witness<E:Pairing>(
+pub fn generate_instance_witness<E: Pairing>(
     num_instance: usize,
     num_witness: usize,
     rng: &mut impl Rng,
-    ka: &Vec<E::ScalarField>,
-    kb: &Vec<E::ScalarField>,
-    ca: &Vec<E::ScalarField>,
-    cb: &Vec<E::ScalarField>
+    ka: &[E::ScalarField],
+    kb: &[E::ScalarField],
+    ca: &[E::ScalarField],
+    cb: &[E::ScalarField],
 ) -> (Vec<E::ScalarField>, Vec<E::ScalarField>) {
     let mut instance = vec![E::ScalarField::zero(); num_instance];
     instance[0] = E::ScalarField::one(); // first instance variable is 1
     let mut witness = vec![E::ScalarField::zero(); num_witness];
-    let m = (num_witness+num_instance) >> 1;
-    
+    let m = (num_witness + num_instance) >> 1;
+
     for i in 1..m {
         let vl = E::ScalarField::rand(rng);
         // let vl = E::ScalarField::one();
-        let tar = (vl * ka[i-1] + ca[i-1]) * (vl * kb[i-1] + cb[i-1]);
-        if i < num_instance{
+        let tar = (vl * ka[i - 1] + ca[i - 1]) * (vl * kb[i - 1] + cb[i - 1]);
+        if i < num_instance {
             instance[i] = vl;
+        } else {
+            witness[i - num_instance] = vl;
         }
-        else{
-            witness[i-num_instance] = vl;
-        }
-        if i+m < num_instance{
-            instance[i+m] = tar;
-        }
-        else{
-            witness[i+m-num_instance] = tar;
+        if i + m < num_instance {
+            instance[i + m] = tar;
+        } else {
+            witness[i + m - num_instance] = tar;
         }
     }
     // println!("{:?}", instance);
@@ -110,52 +112,52 @@ pub fn generate_instance_witness<E:Pairing>(
     (instance, witness)
 }
 
-
 /// A random update to `num_update` of the `z_i`, applied to `instance` and
 /// `witness` in place. Returns the sorted changes to the instance and to the
 /// witness, as `(variable index, delta)`.
-pub fn generate_update<E:Pairing>(
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+pub fn generate_update<E: Pairing>(
     num_constraint: usize,
     num_update: usize,
     num_instance: usize,
-    ka: &Vec<E::ScalarField>,
-    kb: &Vec<E::ScalarField>,
-    ca: &Vec<E::ScalarField>,
-    cb: &Vec<E::ScalarField>,
-    instance: &mut Vec<E::ScalarField>,
-    witness: &mut Vec<E::ScalarField>,
+    ka: &[E::ScalarField],
+    kb: &[E::ScalarField],
+    ca: &[E::ScalarField],
+    cb: &[E::ScalarField],
+    instance: &mut [E::ScalarField],
+    witness: &mut [E::ScalarField],
     rng: &mut impl Rng,
 ) -> (Vec<(usize, E::ScalarField)>, Vec<(usize, E::ScalarField)>) {
     let mut update_instance = Vec::new();
     let mut update_witness = Vec::new();
     let m = num_constraint >> 1;
-    if num_update >= m{
+    if num_update >= m {
         panic!("Too Much Update");
     }
     let mut sample_rng = rand::rng();
-    let indices:Vec<usize> = sample(&mut sample_rng, m-1, num_update).into_iter().map(|x|{x+1}).collect();
+    let indices: Vec<usize> = sample(&mut sample_rng, m - 1, num_update)
+        .into_iter()
+        .map(|x| x + 1)
+        .collect();
     for i in indices {
         let dt_z = E::ScalarField::rand(rng);
-        let vl = 
-            if i < num_instance{
-                update_instance.push((i, dt_z));
-                &mut instance[i]
-            }
-            else{
-                update_witness.push((i, dt_z));
-                &mut witness[i-num_instance]
-            };
-        let prev_val = (*vl * ka[i-1] + ca[i-1]) * (*vl * kb[i-1] + cb[i-1]);
+        let vl = if i < num_instance {
+            update_instance.push((i, dt_z));
+            &mut instance[i]
+        } else {
+            update_witness.push((i, dt_z));
+            &mut witness[i - num_instance]
+        };
+        let prev_val = (*vl * ka[i - 1] + ca[i - 1]) * (*vl * kb[i - 1] + cb[i - 1]);
         *vl += dt_z;
-        let next_val = (*vl * ka[i-1] + ca[i-1]) * (*vl * kb[i-1] + cb[i-1]); 
+        let next_val = (*vl * ka[i - 1] + ca[i - 1]) * (*vl * kb[i - 1] + cb[i - 1]);
         let delta = next_val - prev_val;
-        if i+m < num_instance{
-            instance[i+m] = next_val;
-            update_instance.push((i+m, delta));
-        }
-        else{
-            witness[i+m-num_instance] = next_val;
-            update_witness.push((i+m, delta));
+        if i + m < num_instance {
+            instance[i + m] = next_val;
+            update_instance.push((i + m, delta));
+        } else {
+            witness[i + m - num_instance] = next_val;
+            update_witness.push((i + m, delta));
         }
     }
     update_instance.sort_by_key(|x| x.0);
@@ -164,47 +166,48 @@ pub fn generate_update<E:Pairing>(
     (update_instance, update_witness)
 }
 
-
 /// Like [`generate_update`], but leaves `instance` and `witness` unchanged.
-pub fn generate_update_once<E:Pairing>(
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+pub fn generate_update_once<E: Pairing>(
     num_constraint: usize,
     num_update: usize,
     num_instance: usize,
-    ka: &Vec<E::ScalarField>,
-    kb: &Vec<E::ScalarField>,
-    ca: &Vec<E::ScalarField>,
-    cb: &Vec<E::ScalarField>,
-    instance: &Vec<E::ScalarField>,
-    witness: &Vec<E::ScalarField>,
+    ka: &[E::ScalarField],
+    kb: &[E::ScalarField],
+    ca: &[E::ScalarField],
+    cb: &[E::ScalarField],
+    instance: &[E::ScalarField],
+    witness: &[E::ScalarField],
     rng: &mut impl Rng,
 ) -> (Vec<(usize, E::ScalarField)>, Vec<(usize, E::ScalarField)>) {
     let mut update_instance = Vec::new();
     let mut update_witness = Vec::new();
     let m = num_constraint >> 1;
-    if num_update >= m{
+    if num_update >= m {
         panic!("Too Much Update");
     }
     let mut sample_rng = rand::rng();
-    let indices:Vec<usize> = sample(&mut sample_rng, m-1, num_update).into_iter().map(|x|{x+1}).collect();
+    let indices: Vec<usize> = sample(&mut sample_rng, m - 1, num_update)
+        .into_iter()
+        .map(|x| x + 1)
+        .collect();
     for i in indices {
         let dt_z = E::ScalarField::rand(rng);
-        let vl = 
-            if i < num_instance{
-                update_instance.push((i, dt_z));
-                instance[i]
-            }
-            else{
-                update_witness.push((i, dt_z));
-                witness[i-num_instance]
-            };
-        let prev_val = (vl * ka[i-1] + ca[i-1]) * (vl * kb[i-1] + cb[i-1]);
-        let next_val = ((vl+dt_z) * ka[i-1] + ca[i-1]) * ((vl+dt_z) * kb[i-1] + cb[i-1]); 
+        let vl = if i < num_instance {
+            update_instance.push((i, dt_z));
+            instance[i]
+        } else {
+            update_witness.push((i, dt_z));
+            witness[i - num_instance]
+        };
+        let prev_val = (vl * ka[i - 1] + ca[i - 1]) * (vl * kb[i - 1] + cb[i - 1]);
+        let next_val =
+            ((vl + dt_z) * ka[i - 1] + ca[i - 1]) * ((vl + dt_z) * kb[i - 1] + cb[i - 1]);
         let delta = next_val - prev_val;
-        if i+m < num_instance{
-            update_instance.push((i+m, delta));
-        }
-        else{
-            update_witness.push((i+m, delta));
+        if i + m < num_instance {
+            update_instance.push((i + m, delta));
+        } else {
+            update_witness.push((i + m, delta));
         }
     }
     update_instance.sort_by_key(|x| x.0);
@@ -237,9 +240,14 @@ pub fn generate_sparse_r1cs<E: Pairing>(
     for i in &inputs[..nonzero] {
         z[*i] = F::<E>::rand(rng);
     }
-    let (mut a, mut b, mut c): (Matrix<F<E>>, Matrix<F<E>>, Matrix<F<E>>) = (vec![], vec![], vec![]);
+    let (mut a, mut b, mut c): (Matrix<F<E>>, Matrix<F<E>>, Matrix<F<E>>) =
+        (vec![], vec![], vec![]);
     for row in 0..n {
-        let (x, y, out) = (1 + rng.gen_range(0..num_inputs), 1 + rng.gen_range(0..num_inputs), 1 + num_inputs + row);
+        let (x, y, out) = (
+            1 + rng.gen_range(0..num_inputs),
+            1 + rng.gen_range(0..num_inputs),
+            1 + num_inputs + row,
+        );
         z[out] = z[x] * z[y];
         a.push(vec![(F::<E>::one(), x)]);
         b.push(vec![(F::<E>::one(), y)]);

@@ -58,8 +58,17 @@ fn pairwise_matches_sparse_conv() {
 #[test]
 fn auto_picks_by_cost() {
     let rows = |k: usize| (0..k).map(|i| (i, F::from(1u64))).collect::<Vec<_>>();
-    assert_eq!(CrossTermMethod::Auto.resolve(&rows(16), &rows(16)), CrossTermMethod::Pairwise);
-    assert_eq!(CrossTermMethod::Auto.resolve(&rows(8192), &rows(8192)), CrossTermMethod::SparseConv);
+    assert_eq!(
+        CrossTermMethod::Auto.resolve(&rows(16), &rows(16)),
+        CrossTermMethod::Pairwise
+    );
+    assert_eq!(
+        CrossTermMethod::Auto.resolve(&rows(8192), &rows(8192)),
+        CrossTermMethod::SparseConv
+    );
     // Many accumulated rows against a small update: pairwise is cheaper.
-    assert_eq!(CrossTermMethod::Auto.resolve(&rows(16384), &rows(64)), CrossTermMethod::Pairwise);
+    assert_eq!(
+        CrossTermMethod::Auto.resolve(&rows(16384), &rows(64)),
+        CrossTermMethod::Pairwise
+    );
 }

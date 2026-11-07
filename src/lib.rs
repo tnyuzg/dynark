@@ -19,14 +19,20 @@
 //! | Projection term, and the per-witness data precomputed for it (in one go, step by step, or with the Feist-Khovratovich baseline) | [`decomposition::projection`] |
 //! | Cross term | [`decomposition::cross`] |
 //! | Groth16 setup `G`, prover `P` (7 and 6 DFTs) and verifier `V`, with Dynark's conversion of R1CS to polynomials | [`groth16`] |
-//! | FasterGroth16: the prover with 4 DFTs (appendix "Proof Quotient") | [`FasterGroth16`] |
+//! | FasterGroth16: the prover with 4 DFTs and a second MSM (appendix "Proof Quotient"); not faster on dense witnesses | [`FasterGroth16`] |
 //! | SparseGroth16: the sparse prover ("Sparse zkSNARKs") | [`SparseGroth16`] |
 //! | SemiDynark: preprocessing `K` and update `U` | [`SemiDynark`] |
 //! | FullyDynark, de-amortized | [`FullyDynark`] |
 //! | Synthetic R1CS used in the evaluation | [`synthetic_r1cs`] |
 //!
 //! [paper]: https://eprint.iacr.org/2025/1897
-#![warn(unused, future_incompatible, nonstandard_style, rust_2018_idioms, missing_docs)]
+#![warn(
+    unused,
+    future_incompatible,
+    nonstandard_style,
+    rust_2018_idioms,
+    missing_docs
+)]
 
 #[macro_use]
 extern crate ark_std;
@@ -41,9 +47,11 @@ pub mod semi_dynamic;
 pub mod sparse_groth16;
 pub mod synthetic_r1cs;
 
-pub use ark_groth16::{prepare_verifying_key, PreparedVerifyingKey, Proof, ProvingKey, VerifyingKey};
+pub use ark_groth16::{
+    prepare_verifying_key, PreparedVerifyingKey, Proof, ProvingKey, VerifyingKey,
+};
 pub use decomposition::QuotientBasis;
-pub use fully_dynamic::{FullyCheckpoint, FullyDynark};
 pub use faster_groth16::{FasterGroth16, FasterGroth16Key};
-pub use sparse_groth16::{SparseGroth16, SparseGroth16Key};
+pub use fully_dynamic::{FullyCheckpoint, FullyDynark};
 pub use semi_dynamic::{SemiDynark, SemiDynarkData, UpdatingKey};
+pub use sparse_groth16::{SparseGroth16, SparseGroth16Key};

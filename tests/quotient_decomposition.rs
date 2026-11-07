@@ -44,7 +44,15 @@ fn quotient_decomposition_holds() {
         let pk = groth16::generate_prover_key_with_matrices::<E>(
             domain,
             &matrices,
-            (tau, alpha, beta, gamma, delta, g1.into_affine(), g2.into_affine()),
+            (
+                tau,
+                alpha,
+                beta,
+                gamma,
+                delta,
+                g1.into_affine(),
+                g2.into_affine(),
+            ),
         )
         .unwrap();
         let basis = QuotientBasis::<E>::new(&domain, &pk.h_query);
@@ -61,8 +69,8 @@ fn quotient_decomposition_holds() {
                     assert_eq!(basis.diag[i], expected, "n = {n}, i = {i}");
                 } else {
                     let expected = g1 * (l[i] * l[j] * delta_inv);
-                    let decomposition =
-                        basis.ell_bar[i] * basis.w[(n + j - i) % n] + basis.ell_bar[j] * basis.w[(n + i - j) % n];
+                    let decomposition = basis.ell_bar[i] * basis.w[(n + j - i) % n]
+                        + basis.ell_bar[j] * basis.w[(n + i - j) % n];
                     assert_eq!(decomposition, expected, "n = {n}, i = {i}, j = {j}");
                 }
             }

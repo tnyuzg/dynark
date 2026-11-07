@@ -26,6 +26,7 @@ use rayon::prelude::*;
 
 /// `G`: samples fresh trapdoors and generators and returns the prover key,
 /// the verifier key, and the evaluation domain.
+#[allow(clippy::type_complexity)]
 pub fn setup<E: Pairing, R: Rng>(
     r1cs: ConstraintMatrices<E::ScalarField>,
     rng: &mut R,
@@ -63,6 +64,7 @@ pub fn setup<E: Pairing, R: Rng>(
 
 /// Builds the prover key from explicit trapdoors
 /// `(tau, alpha, beta, gamma, delta)` and group generators.
+#[allow(clippy::type_complexity)]
 pub fn generate_prover_key_with_matrices<E: Pairing>(
     domain: GeneralEvaluationDomain<E::ScalarField>,
     matrices: &ConstraintMatrices<E::ScalarField>,
@@ -117,13 +119,13 @@ pub fn generate_prover_key_with_matrices<E: Pairing>(
     let t_v = cfg_iter!(u[..num_instance])
         .zip(&v[..num_instance])
         .zip(&w[..num_instance])
-        .map(|((u_j, v_j), w_j)| (beta * u_j + &(alpha * v_j) + w_j) * &gamma_inverse)
+        .map(|((u_j, v_j), w_j)| (beta * u_j + (alpha * v_j) + w_j) * gamma_inverse)
         .collect::<Vec<_>>();
 
     let t_p = cfg_iter!(u[num_instance..])
         .zip(&v[num_instance..])
         .zip(&w[num_instance..])
-        .map(|((u_j, v_j), w_j)| (beta * u_j + &(alpha * v_j) + w_j) * &delta_inverse)
+        .map(|((u_j, v_j), w_j)| (beta * u_j + (alpha * v_j) + w_j) * delta_inverse)
         .collect::<Vec<_>>();
 
     let tau_powers = tau_powers_field_lifted::<_, D<E::ScalarField>>(
@@ -143,11 +145,11 @@ pub fn generate_prover_key_with_matrices<E: Pairing>(
     );
     let g2_table = BatchMulPreprocessing::new(g2_gen, non_zero_v);
 
-    let alpha_g1 = g1_gen * &alpha;
-    let beta_g1 = g1_gen * &beta;
-    let beta_g2 = g2_gen * &beta;
-    let delta_g1 = g1_gen * &delta;
-    let delta_g2 = g2_gen * &delta;
+    let alpha_g1 = g1_gen * alpha;
+    let beta_g1 = g1_gen * beta;
+    let beta_g2 = g2_gen * beta;
+    let delta_g1 = g1_gen * delta;
+    let delta_g2 = g2_gen * delta;
 
     let u_g1 = g1_table.batch_mul(&u);
 
@@ -161,7 +163,7 @@ pub fn generate_prover_key_with_matrices<E: Pairing>(
 
     let tau_powers_g1 = g1_table.batch_mul(&tau_powers);
 
-    let gamma_g2 = g2_gen * &gamma;
+    let gamma_g2 = g2_gen * gamma;
 
     let vk = VerifyingKey::<E> {
         alpha_g1: alpha_g1.into_affine(),

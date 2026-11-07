@@ -12,7 +12,9 @@ use ark_bls12_381::Bls12_381;
 use ark_std::rand::{rngs::StdRng, SeedableRng};
 use common::{single_threaded, time, Arg, Options, Recorder};
 use dynark::{
-    decomposition::projection::{precompute_projection, precompute_projection_fk, FkPrecomputation},
+    decomposition::projection::{
+        precompute_projection, precompute_projection_fk, FkPrecomputation,
+    },
     groth16::{self, qap::lagrange_of_dense_vec},
     synthetic_r1cs::{generate_instance_witness, generate_matrices},
     QuotientBasis,
@@ -25,7 +27,10 @@ fn main() {
         "preprocessing",
         &[12, 14, 16],
         3,
-        &[("--serial-max-log-n", Arg::Value), ("--methods", Arg::Value)],
+        &[
+            ("--serial-max-log-n", Arg::Value),
+            ("--methods", Arg::Value),
+        ],
     );
     // Also measure single-threaded, up to this size (0: never).
     let serial_max_log_n = opts.usize("--serial-max-log-n", 0);
@@ -36,7 +41,8 @@ fn main() {
         let n = 1 << log_n;
         let mut rng = StdRng::seed_from_u64(log_n as u64);
         let (matrices, ka, kb, ca, cb) = generate_matrices::<E>(n, 1, n - 1, &mut rng);
-        let (instance, witness) = generate_instance_witness::<E>(1, n - 1, &mut rng, &ka, &kb, &ca, &cb);
+        let (instance, witness) =
+            generate_instance_witness::<E>(1, n - 1, &mut rng, &ka, &kb, &ca, &cb);
         let z = [&instance[..], &witness[..]].concat();
         let (pk, _, domain) = groth16::setup::<E, _>(matrices.clone(), &mut rng).unwrap();
         let basis = QuotientBasis::<E>::new(&domain, &pk.h_query);
@@ -58,7 +64,12 @@ fn main() {
         }
         for &threads in &thread_counts {
             let row = |method: &str, phase: &str| {
-                vec![method.into(), phase.into(), log_n.to_string(), threads.to_string()]
+                vec![
+                    method.into(),
+                    phase.into(),
+                    log_n.to_string(),
+                    threads.to_string(),
+                ]
             };
             let measure = |f: &(dyn Fn() + Sync)| {
                 if threads == 1 {

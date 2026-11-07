@@ -27,7 +27,7 @@ use rayon::prelude::*;
 /// Pending sparse changes to a length-`n` vector, accumulated by index and
 /// cleared in `O(1)` by bumping a timestamp.
 #[derive(Clone, Debug, PartialEq)]
-pub struct SparseRecord<E:Pairing>{
+pub struct SparseRecord<E: Pairing> {
     /// Current Timestamp
     cur_tim: usize,
     /// Iteration for each slot
@@ -38,42 +38,49 @@ pub struct SparseRecord<E:Pairing>{
     u_ids: Vec<usize>,
 }
 
-impl<E:Pairing> SparseRecord<E>{
+impl<E: Pairing> SparseRecord<E> {
     /// Define a new SparseRecord
-    pub fn new(n: usize) -> Self{
+    pub fn new(n: usize) -> Self {
         let cur_tim: usize = 1;
         let tims: Vec<usize> = vec![0; n];
         let vals: Vec<E::ScalarField> = vec![E::ScalarField::zero(); n];
         let u_ids: Vec<usize> = Vec::with_capacity(n);
-        Self { cur_tim, tims, vals, u_ids }
+        Self {
+            cur_tim,
+            tims,
+            vals,
+            u_ids,
+        }
     }
     /// Start a new iterate version
-    pub fn clr(&mut self){
+    pub fn clr(&mut self) {
         self.cur_tim += 1;
         self.u_ids.clear();
     }
     /// Update on specific slot
-    pub fn ins(&mut self, id: usize, vl: E::ScalarField){
-        if self.tims[id] != self.cur_tim{
+    pub fn ins(&mut self, id: usize, vl: E::ScalarField) {
+        if self.tims[id] != self.cur_tim {
             self.tims[id] = self.cur_tim;
             self.vals[id] = vl;
             self.u_ids.push(id);
-        }
-        else{
+        } else {
             self.vals[id] += vl;
         }
     }
     /// Check the i the bit
-    pub fn get(&self, id: usize) -> E::ScalarField{
-        if self.tims[id] == self.cur_tim{
+    pub fn get(&self, id: usize) -> E::ScalarField {
+        if self.tims[id] == self.cur_tim {
             return self.vals[id];
         }
         E::ScalarField::zero()
     }
     /// Parse all the ids
-    pub fn parse(&mut self) -> Vec<(usize, E::ScalarField)>{
+    pub fn parse(&mut self) -> Vec<(usize, E::ScalarField)> {
         self.u_ids.sort();
-        self.u_ids.par_iter().map(|id|{(*id, self.vals[*id])}).collect::<Vec<(usize, E::ScalarField)>>()
+        self.u_ids
+            .par_iter()
+            .map(|id| (*id, self.vals[*id]))
+            .collect::<Vec<(usize, E::ScalarField)>>()
     }
 }
 
@@ -142,7 +149,16 @@ impl<E: Pairing> FullyCheckpoint<E> {
             .ok_or(SynthesisError::PolynomialDegreeTooLarge)
             .unwrap();
         let abc = lagrange_of_dense_vec(r1cs, &[instance, witness].concat()).unwrap();
-        Self::from_parts(n, domain, uk, instance, witness, abc, qa.to_vec(), qb.to_vec())
+        Self::from_parts(
+            n,
+            domain,
+            uk,
+            instance,
+            witness,
+            abc,
+            qa.to_vec(),
+            qb.to_vec(),
+        )
     }
 
     #[allow(clippy::too_many_arguments, clippy::type_complexity)]
@@ -152,7 +168,11 @@ impl<E: Pairing> FullyCheckpoint<E> {
         uk: &UpdatingKey<E>,
         instance: &[E::ScalarField],
         witness: &[E::ScalarField],
-        (a, b, c): (Vec<E::ScalarField>, Vec<E::ScalarField>, Vec<E::ScalarField>),
+        (a, b, c): (
+            Vec<E::ScalarField>,
+            Vec<E::ScalarField>,
+            Vec<E::ScalarField>,
+        ),
         q_a: Vec<E::G1>,
         q_b: Vec<E::G1>,
     ) -> Self {
@@ -382,8 +402,7 @@ impl<E: Pairing> FullyDynark<E> {
     ) -> Proof<E> {
         self.rebuilding
             .trivial_append(uk, instance_update, witness_update);
-        self.active
-            .update_from(uk, instance_update, witness_update);
+        self.active.update_from(uk, instance_update, witness_update);
         self.active.blinded_proof(uk, rng)
     }
 

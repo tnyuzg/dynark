@@ -13,6 +13,12 @@
 //! `C * z`. The two convolutions take 4 DFTs over the domain itself, instead
 //! of the 6 or 7 DFTs over a coset that [`groth16::prove_6dft`] and
 //! [`groth16::prove`] use, at the cost of a second MSM of size `n`.
+//!
+//! Measured, this is not an improvement for dense witnesses: a size-`n` G1
+//! MSM costs 30-50 size-`n` field DFTs, so the extra MSM outweighs the two
+//! saved DFTs (about 20% slower than `prove_6dft` when `C * z` is dense, a
+//! tie when half of it is zero). It gains only when the scalars `q~` and `c`
+//! are mostly zero, which is the regime of [`SparseGroth16`](crate::SparseGroth16).
 use crate::{
     decomposition::QuotientBasis,
     groth16::{

@@ -34,10 +34,7 @@ pub struct QuotientBasis<E: Pairing> {
 impl<E: Pairing> QuotientBasis<E> {
     /// Derives the basis from the prover key's `h_query`, the elements
     /// `tau^i * Z_H(tau) / delta` in G1, for `i < n - 1`.
-    pub fn new(
-        domain: &GeneralEvaluationDomain<E::ScalarField>,
-        h_query: &[E::G1Affine],
-    ) -> Self {
+    pub fn new(domain: &GeneralEvaluationDomain<E::ScalarField>, h_query: &[E::G1Affine]) -> Self {
         let domain_size = domain.size();
         debug_assert!((domain_size % 2) == 0);
 

@@ -18,8 +18,10 @@ fresh and updated proofs are checked by its verifier.
 The crate also implements two faster Groth16 provers from the paper. They
 use the same keys and produce the same proofs as the standard prover:
 
-- **FasterGroth16** computes the quotient with 4 DFTs over the domain, instead
-  of 7 over a coset.
+- **FasterGroth16** computes the quotient with 4 DFTs over the domain instead
+  of 6 over a coset, at the cost of a second size-`n` MSM. In our measurements
+  this is no faster than the 6-DFT prover on dense witnesses (an MSM costs
+  30-50 DFTs); it only gains when `A * z`, `B * z`, `C * z` are mostly zero.
 - **SparseGroth16** takes time that depends only on the number of nonzero
   entries in the assignment and in `A * z` and `B * z`.
 
@@ -76,8 +78,7 @@ cargo bench --bench updates -- --log-n 10..22:2 --log-d 0 --serial
 
 Each run writes a CSV with one row per measured run, and a Markdown report
 with the command, commit, machine and a summary, to `results/`. See
-[`benches/README.md`](benches/README.md) for the options, and for the commands
-that correspond to the previous `bench_v1` and `bench_v2` experiments.
+[`benches/README.md`](benches/README.md) for the options.
 
 ## Acknowledgement
 

@@ -107,7 +107,9 @@ impl Options {
     /// The value of an integer option, or `default`.
     pub fn usize(&self, flag: &str, default: usize) -> usize {
         match self.extra.get(flag) {
-            Some(Some(v)) => v.parse().unwrap_or_else(|_| panic!("{flag} takes an integer")),
+            Some(Some(v)) => v
+                .parse()
+                .unwrap_or_else(|_| panic!("{flag} takes an integer")),
             _ => default,
         }
     }
@@ -137,8 +139,10 @@ fn parse_list(s: &str) -> Vec<usize> {
                     Some((end, step)) => (end, step.parse().expect("bad step")),
                     None => (step, 1),
                 };
-                let (start, end): (usize, usize) =
-                    (range.parse().expect("bad range"), end.parse().expect("bad range"));
+                let (start, end): (usize, usize) = (
+                    range.parse().expect("bad range"),
+                    end.parse().expect("bad range"),
+                );
                 (start..=end).step_by(step).collect::<Vec<_>>()
             } else {
                 vec![part.parse().expect("expected an integer")]
@@ -185,7 +189,10 @@ impl Recorder {
         let stem = opts
             .out_dir
             .join(format!("{}-{}", opts.name, started.replace(':', "-")));
-        let args: Vec<String> = std::env::args().skip(1).filter(|a| a != "--bench").collect();
+        let args: Vec<String> = std::env::args()
+            .skip(1)
+            .filter(|a| a != "--bench")
+            .collect();
         let command = format!("cargo bench --bench {} -- {}", opts.name, args.join(" "));
         println!(
             "{}: {} threads; writing {}.csv",
@@ -331,7 +338,7 @@ fn git_commit() -> String {
     match command_output("git", &["rev-parse", "--short", "HEAD"]) {
         Some(commit) => {
             let dirty = command_output("git", &["status", "--porcelain", "--untracked-files=no"])
-                .map_or(false, |s| !s.is_empty());
+                .is_some_and(|s| !s.is_empty());
             if dirty {
                 format!("{commit} (with uncommitted changes)")
             } else {

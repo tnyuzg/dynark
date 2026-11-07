@@ -218,10 +218,9 @@ impl<E: Pairing> SemiDynark<E> {
         let b_g2_new =
             data.b_g2.into_group() + delta_g2 * (s_new - data.s) + update_b_g2_linear_combine;
 
-        update_c_g1_linear_combination += a_g1_new * &s_new - data.a_g1 * &data.s
-            + b_g1_new * &r_new
-            - data.b_g1 * &data.r
-            - delta_g1 * (r_new * &s_new - data.r * &data.s);
+        update_c_g1_linear_combination += a_g1_new * s_new - data.a_g1 * data.s + b_g1_new * r_new
+            - data.b_g1 * data.r
+            - delta_g1 * (r_new * s_new - data.r * data.s);
 
         let (a_lagrange_sparse, b_lagrange_sparse) =
             lagrange_of_sparse_vec(&uk.a_matrix_cols, &uk.b_matrix_cols, &update)?;

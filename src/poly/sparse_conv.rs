@@ -40,7 +40,9 @@ pub fn mul<F: FftField>(a: &[F], b: &[F]) -> Vec<F> {
     fb.resize(d.size(), F::zero());
     d.fft_in_place(&mut fa);
     d.fft_in_place(&mut fb);
-    fa.par_iter_mut().zip(fb.par_iter()).for_each(|(x, y)| *x *= y);
+    fa.par_iter_mut()
+        .zip(fb.par_iter())
+        .for_each(|(x, y)| *x *= y);
     d.ifft_in_place(&mut fa);
     fa.truncate(out_len);
     fa
@@ -179,7 +181,10 @@ pub fn eval_tree<F: FftField>(node: &Node<F>, xs: &[F], f: &[F]) -> Vec<F> {
         return (node.lo..node.hi).map(|i| horner(f, xs[i])).collect();
     }
     let (l, r) = node.children.as_deref().unwrap();
-    let (fl, fr) = rayon::join(|| rem(f, &l.poly, &l.rev_inv), || rem(f, &r.poly, &r.rev_inv));
+    let (fl, fr) = rayon::join(
+        || rem(f, &l.poly, &l.rev_inv),
+        || rem(f, &r.poly, &r.rev_inv),
+    );
     let (mut vl, vr) = rayon::join(|| eval_tree(l, xs, &fl), || eval_tree(r, xs, &fr));
     vl.extend(vr);
     vl
@@ -210,7 +215,8 @@ pub fn cauchy_sums<F: FftField>(xs: &[F], cs: &[&[F]]) -> Vec<Vec<F>> {
     let tree = build_tree(xs);
     let v1 = deriv(&tree.poly);
     let v2 = deriv(&v1);
-    let (mut v1_at, v2_at) = rayon::join(|| eval_tree(&tree, xs, &v1), || eval_tree(&tree, xs, &v2));
+    let (mut v1_at, v2_at) =
+        rayon::join(|| eval_tree(&tree, xs, &v1), || eval_tree(&tree, xs, &v2));
     batch_inversion(&mut v1_at); // 1 / V'(x_k)
     let half = F::from(2u64).inverse().unwrap();
     cs.par_iter()
@@ -287,9 +293,10 @@ mod tests {
             let mut g: Vec<Fr> = (0..dg).map(|_| Fr::rand(&mut rng)).collect();
             g.push(Fr::from(1u64));
             let mut r = rem(&f, &g, &inv_series(&rev(&g), df - dg + 1));
-            let (_, mut expected) = DenseOrSparsePolynomial::from(DensePolynomial::from_coefficients_vec(f))
-                .divide_with_q_and_r(&DensePolynomial::from_coefficients_vec(g).into())
-                .unwrap();
+            let (_, mut expected) =
+                DenseOrSparsePolynomial::from(DensePolynomial::from_coefficients_vec(f))
+                    .divide_with_q_and_r(&DensePolynomial::from_coefficients_vec(g).into())
+                    .unwrap();
             r.resize(dg, Fr::zero());
             expected.coeffs.resize(dg, Fr::zero());
             assert_eq!(r, expected.coeffs, "deg f = {df}, deg g = {dg}");

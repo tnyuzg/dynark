@@ -90,7 +90,10 @@ impl<E: Pairing> SparseGroth16<E> {
         let (a, b) = lagrange_of_sparse_vec(&key.a_matrix_cols, &key.b_matrix_cols, assignment)?;
         let q_g1 = cross_term(&key.basis, &a, &b);
 
-        let scalars: Vec<_> = assignment.par_iter().map(|(_, z)| z.into_bigint()).collect();
+        let scalars: Vec<_> = assignment
+            .par_iter()
+            .map(|(_, z)| z.into_bigint())
+            .collect();
         let gather = |bases: &[E::G1Affine]| -> Vec<E::G1Affine> {
             assignment.par_iter().map(|(j, _)| bases[*j]).collect()
         };

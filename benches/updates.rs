@@ -21,7 +21,9 @@ use ark_std::rand::{rngs::StdRng, Rng, SeedableRng};
 use common::{single_threaded, time, Arg, Options, Recorder};
 use dynark::{
     groth16, prepare_verifying_key,
-    synthetic_r1cs::{generate_instance_witness, generate_matrices, generate_update, generate_update_once},
+    synthetic_r1cs::{
+        generate_instance_witness, generate_matrices, generate_update, generate_update_once,
+    },
     FullyCheckpoint, FullyDynark, SemiDynark,
 };
 
@@ -52,24 +54,40 @@ fn main() {
         let n = 1 << log_n;
         let num_instance = 1;
         let mut rng = StdRng::seed_from_u64(log_n as u64);
-        let (matrices, ka, kb, ca, cb) = generate_matrices::<E>(n, num_instance, n - num_instance, &mut rng);
-        let (mut instance, mut witness) =
-            generate_instance_witness::<E>(num_instance, n - num_instance, &mut rng, &ka, &kb, &ca, &cb);
+        let (matrices, ka, kb, ca, cb) =
+            generate_matrices::<E>(n, num_instance, n - num_instance, &mut rng);
+        let (mut instance, mut witness) = generate_instance_witness::<E>(
+            num_instance,
+            n - num_instance,
+            &mut rng,
+            &ka,
+            &kb,
+            &ca,
+            &cb,
+        );
         let (pk, vk, domain) = SemiDynark::<E>::setup(matrices.clone(), &mut rng).unwrap();
         let pvk = prepare_verifying_key(&vk);
         let uk = SemiDynark::<E>::generate_updating_key(&matrices, &domain, &pk).unwrap();
         let coset_basis = groth16::CosetBasis::new(&domain, &pk.h_query);
-        let (_, mut data) = SemiDynark::<E>::prove(&pk, &matrices, &instance, &witness, &mut rng).unwrap();
+        let (_, mut data) =
+            SemiDynark::<E>::prove(&pk, &matrices, &instance, &witness, &mut rng).unwrap();
         SemiDynark::<E>::preprocess(&uk, &matrices, &instance, &witness, &mut data).unwrap();
         let row = |scheme: &str, d: &str, threads: &str, phase: &str| {
-            vec![scheme.into(), log_n.to_string(), d.into(), threads.into(), phase.into()]
+            vec![
+                scheme.into(),
+                log_n.to_string(),
+                d.into(),
+                threads.into(),
+                phase.into(),
+            ]
         };
 
         if schemes.contains("groth16") {
             for run in 0..opts.repeat {
                 let prove = || {
                     let mut rng = StdRng::seed_from_u64(run as u64);
-                    groth16::prove_6dft(&pk, &coset_basis, &matrices, &instance, &witness, &mut rng).unwrap()
+                    groth16::prove_6dft(&pk, &coset_basis, &matrices, &instance, &witness, &mut rng)
+                        .unwrap()
                 };
                 let ((proof, _), t) = time(prove);
                 rec.record(row("groth16", "", &threads, "prove"), run, t);
@@ -104,14 +122,33 @@ fn main() {
             if schemes.contains("semi") {
                 for run in 0..opts.repeat {
                     let (instance_update, witness_update) = generate_update_once::<E>(
-                        n, d, num_instance, &ka, &kb, &ca, &cb, &instance, &witness, &mut rng,
+                        n,
+                        d,
+                        num_instance,
+                        &ka,
+                        &kb,
+                        &ca,
+                        &cb,
+                        &instance,
+                        &witness,
+                        &mut rng,
                     );
                     let update = || {
                         let mut rng = StdRng::seed_from_u64(run as u64);
-                        SemiDynark::<E>::update(&uk, &instance_update, &witness_update, &data, &mut rng).unwrap()
+                        SemiDynark::<E>::update(
+                            &uk,
+                            &instance_update,
+                            &witness_update,
+                            &data,
+                            &mut rng,
+                        )
+                        .unwrap()
                     };
                     let (proof, t) = time(update);
-                    assert!(SemiDynark::<E>::verify(&pvk, &proof, &instance).unwrap(), "semi proof rejected");
+                    assert!(
+                        SemiDynark::<E>::verify(&pvk, &proof, &instance).unwrap(),
+                        "semi proof rejected"
+                    );
                     rec.record(row("semi", &d_col, &threads, "update"), run, t);
                     if serial {
                         let (_, t) = single_threaded(|| time(update));
@@ -122,27 +159,61 @@ fn main() {
             }
 
             if let Some(prover) = fully.as_mut() {
-                let runs = opts.usize("--fully-runs", opts.repeat.max((1 << ((log_n + 6) / 2)) / d));
-                let budget = if opts.switch("--half-budget") { (d + 1) / 2 } else { d };
+                let runs = opts.usize(
+                    "--fully-runs",
+                    opts.repeat.max((1 << ((log_n + 6) / 2)) / d),
+                );
+                let budget = if opts.switch("--half-budget") {
+                    d.div_ceil(2)
+                } else {
+                    d
+                };
                 let mut serial_run = rng.gen_range(0..serial_every);
                 for run in 0..runs {
                     if run % serial_every == 0 && run > 0 {
                         serial_run = run + rng.gen_range(0..serial_every);
                     }
                     let (instance_update, witness_update) = generate_update::<E>(
-                        n, d, num_instance, &ka, &kb, &ca, &cb, &mut instance, &mut witness, &mut rng,
+                        n,
+                        d,
+                        num_instance,
+                        &ka,
+                        &kb,
+                        &ca,
+                        &cb,
+                        &mut instance,
+                        &mut witness,
+                        &mut rng,
                     );
                     let single = serial && run == serial_run;
                     let mut update = || {
                         let (_, rebuild) = time(|| prover.advance_rebuild(&uk, budget));
                         let mut blind_rng = StdRng::seed_from_u64(run as u64);
-                        let (proof, apply) = time(|| prover.apply_update(&uk, &instance_update, &witness_update, &mut blind_rng));
+                        let (proof, apply) = time(|| {
+                            prover.apply_update(
+                                &uk,
+                                &instance_update,
+                                &witness_update,
+                                &mut blind_rng,
+                            )
+                        });
                         (proof, rebuild, apply)
                     };
-                    let (proof, rebuild, apply) = if single { single_threaded(update) } else { update() };
-                    assert!(SemiDynark::<E>::verify(&pvk, &proof, &instance).unwrap(), "fully proof rejected");
+                    let (proof, rebuild, apply) = if single {
+                        single_threaded(update)
+                    } else {
+                        update()
+                    };
+                    assert!(
+                        SemiDynark::<E>::verify(&pvk, &proof, &instance).unwrap(),
+                        "fully proof rejected"
+                    );
                     let threads_col = if single { "1" } else { threads.as_str() };
-                    rec.record(row("fully", &d_col, threads_col, "update"), run, rebuild + apply);
+                    rec.record(
+                        row("fully", &d_col, threads_col, "update"),
+                        run,
+                        rebuild + apply,
+                    );
                     rec.record(row("fully", &d_col, threads_col, "rebuild"), run, rebuild);
                     rec.record(row("fully", &d_col, threads_col, "apply"), run, apply);
                 }

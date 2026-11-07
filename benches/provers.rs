@@ -19,8 +19,8 @@ use ark_std::rand::{rngs::StdRng, SeedableRng};
 use common::{single_threaded, time, Arg, Options, Recorder};
 use dynark::{
     groth16,
-    FasterGroth16, FasterGroth16Key, SparseGroth16, SparseGroth16Key,
     synthetic_r1cs::{generate_instance_witness, generate_matrices, generate_sparse_r1cs},
+    FasterGroth16, FasterGroth16Key, SparseGroth16, SparseGroth16Key,
 };
 
 type E = Bls12_381;
@@ -45,13 +45,17 @@ fn main() {
         let mut rng = StdRng::seed_from_u64(log_n as u64);
         if workloads.contains("dense") {
             let (matrices, ka, kb, ca, cb) = generate_matrices::<E>(n, 1, n - 1, &mut rng);
-            let (instance, witness) = generate_instance_witness::<E>(1, n - 1, &mut rng, &ka, &kb, &ca, &cb);
+            let (instance, witness) =
+                generate_instance_witness::<E>(1, n - 1, &mut rng, &ka, &kb, &ca, &cb);
             run(&opts, &mut rec, log_n, "dense", matrices, instance, witness);
         }
         if workloads.contains("sparse") {
             let nonzero = opts.usize("--nonzero", 64);
-            let (matrices, instance, witness) = generate_sparse_r1cs::<E>(n, n / 4, nonzero, &mut rng);
-            run(&opts, &mut rec, log_n, "sparse", matrices, instance, witness);
+            let (matrices, instance, witness) =
+                generate_sparse_r1cs::<E>(n, n / 4, nonzero, &mut rng);
+            run(
+                &opts, &mut rec, log_n, "sparse", matrices, instance, witness,
+            );
         }
     }
 }
@@ -65,7 +69,10 @@ fn run(
     instance: Vec<F>,
     witness: Vec<F>,
 ) {
-    let provers = opts.text("--provers", "groth16_6dft,groth16_7dft,faster_groth16,sparse_groth16");
+    let provers = opts.text(
+        "--provers",
+        "groth16_6dft,groth16_7dft,faster_groth16,sparse_groth16",
+    );
     let mut rng = StdRng::seed_from_u64(1);
     let (pk, _, domain) = groth16::setup::<E, _>(matrices.clone(), &mut rng).unwrap();
     let faster_key = FasterGroth16Key::<E>::new(&domain, &pk);
@@ -93,9 +100,19 @@ fn run(
                     _ => {},
                 };
                 if prover != "groth16_7dft" {
-                    let t = if threads == 1 { single_threaded(|| time(one_time).1) } else { time(one_time).1 };
+                    let t = if threads == 1 {
+                        single_threaded(|| time(one_time).1)
+                    } else {
+                        time(one_time).1
+                    };
                     rec.record(
-                        vec![workload.into(), prover.into(), "one_time".into(), log_n.to_string(), threads.to_string()],
+                        vec![
+                            workload.into(),
+                            prover.into(),
+                            "one_time".into(),
+                            log_n.to_string(),
+                            threads.to_string(),
+                        ],
                         run,
                         t,
                     );
@@ -103,17 +120,49 @@ fn run(
                 let prove = || {
                     let mut rng = StdRng::seed_from_u64(run as u64);
                     match prover {
-                        "groth16_6dft" => groth16::prove_6dft(&pk, &coset_basis, &matrices, &instance, &witness, &mut rng),
-                        "groth16_7dft" => groth16::prove(&pk, &matrices, &instance, &witness, &mut rng),
-                        "faster_groth16" => FasterGroth16::prove(&pk, &faster_key, &matrices, &instance, &witness, &mut rng),
-                        "sparse_groth16" => SparseGroth16::prove(&pk, &sparse_key, instance.len(), &assignment, &mut rng),
+                        "groth16_6dft" => groth16::prove_6dft(
+                            &pk,
+                            &coset_basis,
+                            &matrices,
+                            &instance,
+                            &witness,
+                            &mut rng,
+                        ),
+                        "groth16_7dft" => {
+                            groth16::prove(&pk, &matrices, &instance, &witness, &mut rng)
+                        },
+                        "faster_groth16" => FasterGroth16::prove(
+                            &pk,
+                            &faster_key,
+                            &matrices,
+                            &instance,
+                            &witness,
+                            &mut rng,
+                        ),
+                        "sparse_groth16" => SparseGroth16::prove(
+                            &pk,
+                            &sparse_key,
+                            instance.len(),
+                            &assignment,
+                            &mut rng,
+                        ),
                         other => panic!("unknown prover {other}"),
                     }
                     .unwrap()
                 };
-                let t = if threads == 1 { single_threaded(|| time(prove).1) } else { time(prove).1 };
+                let t = if threads == 1 {
+                    single_threaded(|| time(prove).1)
+                } else {
+                    time(prove).1
+                };
                 rec.record(
-                    vec![workload.into(), prover.into(), "prove".into(), log_n.to_string(), threads.to_string()],
+                    vec![
+                        workload.into(),
+                        prover.into(),
+                        "prove".into(),
+                        log_n.to_string(),
+                        threads.to_string(),
+                    ],
                     run,
                     t,
                 );

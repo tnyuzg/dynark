@@ -57,7 +57,10 @@ fn main() {
         }
     }
 
-    let mut rec = Recorder::new(&opts, &["shape", "rows_a", "rows_b", "method", "log_n", "threads"]);
+    let mut rec = Recorder::new(
+        &opts,
+        &["shape", "rows_a", "rows_b", "method", "log_n", "threads"],
+    );
     for (shape, rows_a, rows_b) in shapes {
         if rows_a > n {
             continue;

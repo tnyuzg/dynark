@@ -210,7 +210,7 @@ impl<ConstraintF: PrimeField> ConstraintSynthesizer<ConstraintF>
         let mut lc = lc!();
         let mut coeff = ConstraintF::one();
         for bit in bits.iter() {
-            lc = lc + (coeff, *bit);
+            lc += (coeff, *bit);
             coeff = coeff.double();
         }
 
@@ -251,6 +251,7 @@ const MIMC_ROUNDS: usize = 322;
 ///     return xL
 /// }
 /// ```
+#[allow(clippy::needless_range_loop)]
 fn mimc<F: Field>(mut xl: F, mut xr: F, constants: &[F]) -> F {
     assert_eq!(constants.len(), MIMC_ROUNDS);
 

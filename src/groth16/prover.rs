@@ -178,8 +178,12 @@ fn quotient_commitment<E: Pairing>(
     c: &[E::ScalarField],
 ) -> Result<E::G1, SynthesisError> {
     let tau_powers_g1 = &pk.h_query;
-    let quotient =
-        compute_quotient::<E::ScalarField, D<E::ScalarField>>(domain, a.to_vec(), b.to_vec(), c.to_vec())?;
+    let quotient = compute_quotient::<E::ScalarField, D<E::ScalarField>>(
+        domain,
+        a.to_vec(),
+        b.to_vec(),
+        c.to_vec(),
+    )?;
     let quotient = cfg_into_iter!(quotient)
         .map(|q_i| q_i.into_bigint())
         .collect::<Vec<_>>();

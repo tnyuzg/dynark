@@ -3,15 +3,12 @@ use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::Pairing;
 use ark_ff::{One, Zero};
 use ark_relations::r1cs::ConstraintMatrices;
-use ark_std::{
-    rand::{rngs::StdRng, SeedableRng},
-};
+use ark_std::rand::{rngs::StdRng, SeedableRng};
 use dynark::{
     decomposition::cross::CrossTermMethod,
-    groth16,
-    FasterGroth16, FasterGroth16Key, SparseGroth16, SparseGroth16Key,
-    prepare_verifying_key,
+    groth16, prepare_verifying_key,
     synthetic_r1cs::{generate_instance_witness, generate_matrices, generate_sparse_r1cs},
+    FasterGroth16, FasterGroth16Key, SparseGroth16, SparseGroth16Key,
 };
 
 type E = Bls12_381;
@@ -33,14 +30,37 @@ fn check(matrices: ConstraintMatrices<F>, instance: Vec<F>, witness: Vec<F>, see
     let pvk = prepare_verifying_key(&vk);
 
     let prove_seed = seed + 1;
-    let expected = groth16::prove(&pk, &matrices, &instance, &witness, &mut StdRng::seed_from_u64(prove_seed)).unwrap();
+    let expected = groth16::prove(
+        &pk,
+        &matrices,
+        &instance,
+        &witness,
+        &mut StdRng::seed_from_u64(prove_seed),
+    )
+    .unwrap();
     assert!(groth16::verify(&pvk, &expected.0, &instance).unwrap());
 
     let coset_basis = groth16::CosetBasis::new(&domain, &pk.h_query);
-    let six = groth16::prove_6dft(&pk, &coset_basis, &matrices, &instance, &witness, &mut StdRng::seed_from_u64(prove_seed)).unwrap();
+    let six = groth16::prove_6dft(
+        &pk,
+        &coset_basis,
+        &matrices,
+        &instance,
+        &witness,
+        &mut StdRng::seed_from_u64(prove_seed),
+    )
+    .unwrap();
     assert_eq!(six, expected, "prove_6dft");
 
-    let fast = FasterGroth16::prove(&pk, &faster_key, &matrices, &instance, &witness, &mut StdRng::seed_from_u64(prove_seed)).unwrap();
+    let fast = FasterGroth16::prove(
+        &pk,
+        &faster_key,
+        &matrices,
+        &instance,
+        &witness,
+        &mut StdRng::seed_from_u64(prove_seed),
+    )
+    .unwrap();
     assert_eq!(fast, expected, "FasterGroth16");
 
     let assignment: Vec<(usize, F)> = instance
@@ -50,7 +70,14 @@ fn check(matrices: ConstraintMatrices<F>, instance: Vec<F>, witness: Vec<F>, see
         .filter(|(_, z)| !z.is_zero())
         .map(|(j, z)| (j, *z))
         .collect();
-    let sparse = SparseGroth16::prove(&pk, &sparse_key, instance.len(), &assignment, &mut StdRng::seed_from_u64(prove_seed)).unwrap();
+    let sparse = SparseGroth16::prove(
+        &pk,
+        &sparse_key,
+        instance.len(),
+        &assignment,
+        &mut StdRng::seed_from_u64(prove_seed),
+    )
+    .unwrap();
     assert_eq!(sparse, expected, "SparseGroth16");
 }
 
@@ -76,6 +103,9 @@ fn sparse_groth16_agrees_when_it_uses_sparse_convolution() {
     // About half of the 2^13 rows are nonzero in A * z and B * z.
     let (matrices, instance, witness) = synthetic(1 << 13, &mut rng);
     let rows: Vec<(usize, F)> = (0..1usize << 12).map(|i| (i, F::one())).collect();
-    assert_eq!(CrossTermMethod::Auto.resolve(&rows, &rows), CrossTermMethod::SparseConv);
+    assert_eq!(
+        CrossTermMethod::Auto.resolve(&rows, &rows),
+        CrossTermMethod::SparseConv
+    );
     check(matrices, instance, witness, 60);
 }

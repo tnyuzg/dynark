@@ -20,7 +20,8 @@ fn main() {
             let ((pk, _, domain), t) =
                 time(|| groth16::setup::<E, _>(matrices.clone(), &mut rng).unwrap());
             rec.record(vec![log_n.to_string(), "groth16_setup".into()], run, t);
-            let (_, t) = time(|| SemiDynark::<E>::generate_updating_key(&matrices, &domain, &pk).unwrap());
+            let (_, t) =
+                time(|| SemiDynark::<E>::generate_updating_key(&matrices, &domain, &pk).unwrap());
             rec.record(vec![log_n.to_string(), "updating_key".into()], run, t);
         }
         rec.print_progress();

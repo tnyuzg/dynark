@@ -50,7 +50,6 @@ pub fn convolution_f_f<E: Pairing>(
     a_fft
 }
 
-
 /// Elementwise product of a field vector with a `G1` vector.
 #[inline]
 pub fn elementwise_product_f_g<E: Pairing>(

@@ -20,16 +20,26 @@ fn main() {
     // The stepwise DFT splits the domain into sqrt(n) x sqrt(n), so log n is even.
     let n = 1 << 12;
     let num_instance = 1;
-    let (matrices, ka, kb, ca, cb) = generate_matrices::<E>(n, num_instance, n - num_instance, &mut rng);
-    let (mut instance, mut witness) =
-        generate_instance_witness::<E>(num_instance, n - num_instance, &mut rng, &ka, &kb, &ca, &cb);
+    let (matrices, ka, kb, ca, cb) =
+        generate_matrices::<E>(n, num_instance, n - num_instance, &mut rng);
+    let (mut instance, mut witness) = generate_instance_witness::<E>(
+        num_instance,
+        n - num_instance,
+        &mut rng,
+        &ka,
+        &kb,
+        &ca,
+        &cb,
+    );
 
     let (pk, vk, domain) = SemiDynark::<E>::setup(matrices.clone(), &mut rng).unwrap();
     let uk = SemiDynark::<E>::generate_updating_key(&matrices, &domain, &pk).unwrap();
     let pvk = prepare_verifying_key(&vk);
 
     let start = Instant::now();
-    let mut prover = FullyDynark::new(FullyCheckpoint::<E>::new(n, &uk, &matrices, &instance, &witness));
+    let mut prover = FullyDynark::new(FullyCheckpoint::<E>::new(
+        n, &uk, &matrices, &instance, &witness,
+    ));
     println!("n = {n}: initial checkpoint in {:?}", start.elapsed());
 
     let d = 16;
@@ -38,7 +48,16 @@ fn main() {
     for i in 0..updates {
         // Change d entries of the current witness, and keep the witness in sync.
         let (instance_update, witness_update) = generate_update::<E>(
-            n, d, num_instance, &ka, &kb, &ca, &cb, &mut instance, &mut witness, &mut rng,
+            n,
+            d,
+            num_instance,
+            &ka,
+            &kb,
+            &ca,
+            &cb,
+            &mut instance,
+            &mut witness,
+            &mut rng,
         );
         let start = Instant::now();
         let progress = prover.advance_rebuild(&uk, d);

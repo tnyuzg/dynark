@@ -79,7 +79,7 @@ pub fn projection_term<E: Pairing>(q: &[E::G1], delta: &[(usize, E::ScalarField)
                 let val = dense_vec[*idx];
                 val * coeff
             })
-            .reduce(|| E::G1::zero(), |a, b| a + b)
+            .reduce(E::G1::zero, |a, b| a + b)
     }
 }
 
@@ -111,10 +111,7 @@ pub struct FkPrecomputation<E: Pairing> {
 impl<E: Pairing> FkPrecomputation<E> {
     /// Precomputes for a domain of size `n` from `h_query`, the elements
     /// `tau^i * Z_H(tau) / delta` in G1 for `i < n - 1`.
-    pub fn new(
-        domain: &GeneralEvaluationDomain<E::ScalarField>,
-        h_query: &[E::G1Affine],
-    ) -> Self {
+    pub fn new(domain: &GeneralEvaluationDomain<E::ScalarField>, h_query: &[E::G1Affine]) -> Self {
         let n = domain.size();
         let domain2 = GeneralEvaluationDomain::<E::ScalarField>::new(2 * n)
             .ok_or(SynthesisError::PolynomialDegreeTooLarge)
@@ -122,7 +119,10 @@ impl<E: Pairing> FkPrecomputation<E> {
         let mut h_rev: Vec<E::G1> = h_query.iter().rev().map(|h| h.into_group()).collect();
         h_rev.resize(2 * n, E::G1::zero());
         domain2.fft_in_place(&mut h_rev);
-        Self { domain2, h_rev_dft: h_rev }
+        Self {
+            domain2,
+            h_rev_dft: h_rev,
+        }
     }
 }
 
@@ -163,7 +163,13 @@ fn fk_quotients<E: Pairing>(
         .collect();
     pre.domain2.ifft_in_place(&mut conv);
     let mut openings: Vec<E::G1> = (0..n)
-        .map(|t| if t + 1 < n { conv[t + n - 1] } else { E::G1::zero() })
+        .map(|t| {
+            if t + 1 < n {
+                conv[t + n - 1]
+            } else {
+                E::G1::zero()
+            }
+        })
         .collect();
     // The opening quotient at omega^i is the DFT of H at omega^i.
     domain.fft_in_place(&mut openings);
@@ -176,16 +182,16 @@ fn fk_quotients<E: Pairing>(
 }
 
 ///base batch size
-pub const BASE_BATCH_SIZE: usize = 1<<10;
+pub const BASE_BATCH_SIZE: usize = 1 << 10;
 ///Group operation batch size
 pub const GROUP_OP_BATCH_SIZE: usize = BASE_BATCH_SIZE << 1;
 
 /// Phase of Reconstruction
 #[derive(Clone, Debug, PartialEq)]
-pub enum ReconstructPhase{
+pub enum ReconstructPhase {
     /// Prepare Vector Space
     VecPrepare(usize),
-    /// DFT for Convolution 
+    /// DFT for Convolution
     Dft(SqrtFftStatus),
     /// Pointwise Production
     PointwiseProduct(usize),
@@ -271,166 +277,296 @@ impl<E: Pairing> StepwiseProjection<E> {
         try_steps: usize,
     ) -> (bool, usize) {
         let mut rem_stp = try_steps;
-        while rem_stp > 0{
+        while rem_stp > 0 {
             let unt_stp = std::cmp::min(self.n, GROUP_OP_BATCH_SIZE);
-            match self.status{
-                ReconstructPhase::VecPrepare(ref mut id)=>{
-                    let cnt_stp = std::cmp::min(rem_stp, (self.n-*id)/unt_stp);
+            match self.status {
+                ReconstructPhase::VecPrepare(ref mut id) => {
+                    let cnt_stp = std::cmp::min(rem_stp, (self.n - *id) / unt_stp);
                     let mx_stp = cnt_stp * unt_stp;
-                    let res_a = &mut q_a[*id..(*id+mx_stp)];
-                    let res_b = &mut q_b[*id..(*id+mx_stp)];
-                    let f_a_slice = &a[*id..(*id+mx_stp)];
-                    let f_b_slice = &b[*id..(*id+mx_stp)];
-                    let fl_a_slice = &mut self.fl_a[*id..(*id+mx_stp)];
-                    let fl_b_slice = &mut self.fl_b[*id..(*id+mx_stp)];
-                    let fw_a_slice = &mut self.fw_a[*id..(*id+mx_stp)];
-                    let fw_b_slice = &mut self.fw_b[*id..(*id+mx_stp)];
-                    let lagrange = &basis.ell_bar[*id..(*id+mx_stp)];
-                    let p = &basis.diag[*id..(*id+mx_stp)];
-                    f_a_slice.par_iter().zip(f_b_slice.par_iter()).zip(
-                    res_a.par_iter_mut().zip(res_b.par_iter_mut()).zip(
-                        lagrange.par_iter().zip(p.par_iter()).zip(
-                            fl_a_slice.par_iter_mut().zip(fl_b_slice.par_iter_mut())
-                                .zip(fw_a_slice.par_iter_mut().zip(fw_b_slice.par_iter_mut()))
-                            )
+                    let res_a = &mut q_a[*id..(*id + mx_stp)];
+                    let res_b = &mut q_b[*id..(*id + mx_stp)];
+                    let f_a_slice = &a[*id..(*id + mx_stp)];
+                    let f_b_slice = &b[*id..(*id + mx_stp)];
+                    let fl_a_slice = &mut self.fl_a[*id..(*id + mx_stp)];
+                    let fl_b_slice = &mut self.fl_b[*id..(*id + mx_stp)];
+                    let fw_a_slice = &mut self.fw_a[*id..(*id + mx_stp)];
+                    let fw_b_slice = &mut self.fw_b[*id..(*id + mx_stp)];
+                    let lagrange = &basis.ell_bar[*id..(*id + mx_stp)];
+                    let p = &basis.diag[*id..(*id + mx_stp)];
+                    f_a_slice
+                        .par_iter()
+                        .zip(f_b_slice.par_iter())
+                        .zip(
+                            res_a.par_iter_mut().zip(res_b.par_iter_mut()).zip(
+                                lagrange.par_iter().zip(p.par_iter()).zip(
+                                    fl_a_slice
+                                        .par_iter_mut()
+                                        .zip(fl_b_slice.par_iter_mut())
+                                        .zip(
+                                            fw_a_slice
+                                                .par_iter_mut()
+                                                .zip(fw_b_slice.par_iter_mut()),
+                                        ),
+                                ),
+                            ),
                         )
-                    ).for_each(|((f_a,f_b),((qa,qb),((li, pi),((fl_a,fl_b),(fw_a,fw_b)))))|{
-                        *fl_a = *li * f_a;
-                        *fl_b = *li * f_b;
-                        *fw_a = *f_a;
-                        *fw_b = *f_b;
-                        *qa = *pi * f_a;
-                        *qb = *pi * f_b;
-                    });
+                        .for_each(
+                            |((f_a, f_b), ((qa, qb), ((li, pi), ((fl_a, fl_b), (fw_a, fw_b)))))| {
+                                *fl_a = *li * f_a;
+                                *fl_b = *li * f_b;
+                                *fw_a = *f_a;
+                                *fw_b = *f_b;
+                                *qa = *pi * f_a;
+                                *qb = *pi * f_b;
+                            },
+                        );
                     *id += mx_stp;
                     rem_stp -= cnt_stp;
-                    if *id >= self.n{
+                    if *id >= self.n {
                         *id = 0;
                         self.status = ReconstructPhase::Dft(SqrtFftStatus::new(false));
                     }
-                }
-                ReconstructPhase::Dft(ref mut fft_status)=>{
+                },
+                ReconstructPhase::Dft(ref mut fft_status) => {
                     let mut fft_status_1a = fft_status.clone();
                     let mut fft_status_1b = fft_status.clone();
                     let mut fft_status_2a = fft_status.clone();
                     let mut fft_status_2b = fft_status.clone();
-                    let (mut finish1a, mut finish1b, mut finish2a, mut finish2b) = ((false, 0), (false, 0), (false, 0), (false, 0));
+                    let (mut finish1a, mut finish1b, mut finish2a, mut finish2b) =
+                        ((false, 0), (false, 0), (false, 0), (false, 0));
                     {
-                        let (mut mem_fl_a, mut mem_fl_b, mut mem_fw_a, mut mem_fw_b) = (&mut self.mem_fl_a, &mut self.mem_fl_b, &mut self.mem_fw_a, &mut self.mem_fw_b);
-                        let (mut fl_a, mut fl_b, mut fw_a, mut fw_b) = (&mut self.fl_a, &mut self.fl_b, &mut self.fw_a, &mut self.fw_b);
+                        let (mem_fl_a, mem_fl_b, mem_fw_a, mem_fw_b) = (
+                            &mut self.mem_fl_a,
+                            &mut self.mem_fl_b,
+                            &mut self.mem_fw_a,
+                            &mut self.mem_fw_b,
+                        );
+                        let (fl_a, fl_b, fw_a, fw_b) = (
+                            &mut self.fl_a,
+                            &mut self.fl_b,
+                            &mut self.fw_a,
+                            &mut self.fw_b,
+                        );
                         join(
-                            || {join(
-                                || {finish1a = sqrt_fft_fw_g1(&self.haf_domain,&self.fft_info,&mut fl_a,&mut fft_status_1a, &mut mem_fl_a, rem_stp)},
-                                || {finish1b = sqrt_fft_fw_g1(&self.haf_domain,&self.fft_info,&mut fl_b,&mut fft_status_1b, &mut mem_fl_b, rem_stp)},
-                            )},
-                            || {join(
-                                || {finish2a = sqrt_fft_fw_field(&self.haf_domain,&self.fft_info,&mut fw_a,&mut fft_status_2a, &mut mem_fw_a, rem_stp)},
-                                || {finish2b = sqrt_fft_fw_field(&self.haf_domain,&self.fft_info,&mut fw_b,&mut fft_status_2b, &mut mem_fw_b, rem_stp)},
-                            )},
+                            || {
+                                join(
+                                    || {
+                                        finish1a = sqrt_fft_fw_g1(
+                                            &self.haf_domain,
+                                            &self.fft_info,
+                                            fl_a,
+                                            &mut fft_status_1a,
+                                            mem_fl_a,
+                                            rem_stp,
+                                        )
+                                    },
+                                    || {
+                                        finish1b = sqrt_fft_fw_g1(
+                                            &self.haf_domain,
+                                            &self.fft_info,
+                                            fl_b,
+                                            &mut fft_status_1b,
+                                            mem_fl_b,
+                                            rem_stp,
+                                        )
+                                    },
+                                )
+                            },
+                            || {
+                                join(
+                                    || {
+                                        finish2a = sqrt_fft_fw_field(
+                                            &self.haf_domain,
+                                            &self.fft_info,
+                                            fw_a,
+                                            &mut fft_status_2a,
+                                            mem_fw_a,
+                                            rem_stp,
+                                        )
+                                    },
+                                    || {
+                                        finish2b = sqrt_fft_fw_field(
+                                            &self.haf_domain,
+                                            &self.fft_info,
+                                            fw_b,
+                                            &mut fft_status_2b,
+                                            mem_fw_b,
+                                            rem_stp,
+                                        )
+                                    },
+                                )
+                            },
                         );
                     }
-                    if finish1a != finish1b || finish1b != finish2a || finish2a !=finish2b{
-                        println!("{:?}   {:?}   {:?}   {:?}", finish1a,finish1b,finish2a,finish2b);
-                        println!("   {:?}\n   {:?}\n   {:?}\n   {:?}", fft_status_1a,fft_status_1b,fft_status_2a,fft_status_2b);
+                    if finish1a != finish1b || finish1b != finish2a || finish2a != finish2b {
+                        println!(
+                            "{:?}   {:?}   {:?}   {:?}",
+                            finish1a, finish1b, finish2a, finish2b
+                        );
+                        println!(
+                            "   {:?}\n   {:?}\n   {:?}\n   {:?}",
+                            fft_status_1a, fft_status_1b, fft_status_2a, fft_status_2b
+                        );
                         panic!("Not Syncronized");
                     }
                     rem_stp = finish1a.1;
-                    if finish1a.0{
+                    if finish1a.0 {
                         self.status = ReconstructPhase::PointwiseProduct(0);
-                    }
-                    else{
+                    } else {
                         *fft_status = fft_status_1a;
                     }
-                }
-                ReconstructPhase::PointwiseProduct(ref mut id)=>{
-                    let cnt_stp = std::cmp::min(rem_stp, (self.n-*id)/unt_stp);
+                },
+                ReconstructPhase::PointwiseProduct(ref mut id) => {
+                    let cnt_stp = std::cmp::min(rem_stp, (self.n - *id) / unt_stp);
                     let mx_stp = cnt_stp * unt_stp;
-                    let fl_a_slice = &mut self.fl_a[*id..(*id+mx_stp)];
-                    let fl_b_slice = &mut self.fl_b[*id..(*id+mx_stp)];
-                    let fw_a_slice = &mut self.fw_a[*id..(*id+mx_stp)];
-                    let fw_b_slice = &mut self.fw_b[*id..(*id+mx_stp)];
-                    let w_slice = &basis.w_dft[*id..(*id+mx_stp)];
-                    let w_rev_slice = &basis.w_prime_dft[*id..(*id+mx_stp)];
-                    w_slice.par_iter().zip(w_rev_slice.par_iter()).zip(
-                    fl_a_slice.par_iter_mut().zip(fl_b_slice.par_iter_mut()).zip(
-                        fw_a_slice.par_iter_mut().zip(fw_b_slice.par_iter_mut())
+                    let fl_a_slice = &mut self.fl_a[*id..(*id + mx_stp)];
+                    let fl_b_slice = &mut self.fl_b[*id..(*id + mx_stp)];
+                    let fw_a_slice = &mut self.fw_a[*id..(*id + mx_stp)];
+                    let fw_b_slice = &mut self.fw_b[*id..(*id + mx_stp)];
+                    let w_slice = &basis.w_dft[*id..(*id + mx_stp)];
+                    let w_rev_slice = &basis.w_prime_dft[*id..(*id + mx_stp)];
+                    w_slice
+                        .par_iter()
+                        .zip(w_rev_slice.par_iter())
+                        .zip(
+                            fl_a_slice
+                                .par_iter_mut()
+                                .zip(fl_b_slice.par_iter_mut())
+                                .zip(fw_a_slice.par_iter_mut().zip(fw_b_slice.par_iter_mut())),
                         )
-                    ).for_each(|((w,w_rev),((fl_a,fl_b),(fw_a,fw_b)))|{
-                        *fl_a *= *w;
-                        *fl_b *= *w;
-                        *fw_a *= *w_rev;
-                        *fw_b *= *w_rev;
-                    });
+                        .for_each(|((w, w_rev), ((fl_a, fl_b), (fw_a, fw_b)))| {
+                            *fl_a *= *w;
+                            *fl_b *= *w;
+                            *fw_a *= *w_rev;
+                            *fw_b *= *w_rev;
+                        });
                     *id += mx_stp;
                     rem_stp -= cnt_stp;
-                    if *id >= self.n{
+                    if *id >= self.n {
                         *id = 0;
                         self.status = ReconstructPhase::IDft(SqrtFftStatus::new(true));
                     }
-                }
-                ReconstructPhase::IDft(ref mut fft_status)=>{
+                },
+                ReconstructPhase::IDft(ref mut fft_status) => {
                     let mut fft_status_1a = fft_status.clone();
                     let mut fft_status_1b = fft_status.clone();
                     let mut fft_status_2a = fft_status.clone();
                     let mut fft_status_2b = fft_status.clone();
-                    let (mut finish1a, mut finish1b, mut finish2a, mut finish2b) = ((false, 0), (false, 0), (false, 0), (false, 0));
+                    let (mut finish1a, mut finish1b, mut finish2a, mut finish2b) =
+                        ((false, 0), (false, 0), (false, 0), (false, 0));
                     {
-                        let (mut mem_fl_a, mut mem_fl_b, mut mem_fw_a, mut mem_fw_b) = (&mut self.mem_fl_a, &mut self.mem_fl_b, &mut self.mem_fw_a, &mut self.mem_fw_b);
-                        let (mut fl_a, mut fl_b, mut fw_a, mut fw_b) = (&mut self.fl_a, &mut self.fl_b, &mut self.fw_a, &mut self.fw_b);
+                        let (mem_fl_a, mem_fl_b, mem_fw_a, mem_fw_b) = (
+                            &mut self.mem_fl_a,
+                            &mut self.mem_fl_b,
+                            &mut self.mem_fw_a,
+                            &mut self.mem_fw_b,
+                        );
+                        let (fl_a, fl_b, fw_a, fw_b) = (
+                            &mut self.fl_a,
+                            &mut self.fl_b,
+                            &mut self.fw_a,
+                            &mut self.fw_b,
+                        );
                         join(
-                            || {join(
-                                || {finish1a = sqrt_fft_fw_g1(&self.haf_domain,&self.fft_info,&mut fl_a,&mut fft_status_1a, &mut mem_fl_a, rem_stp)},
-                                || {finish1b = sqrt_fft_fw_g1(&self.haf_domain,&self.fft_info,&mut fl_b,&mut fft_status_1b, &mut mem_fl_b, rem_stp)},
-                            )},|| {join(
-                                || {finish2a = sqrt_fft_fw_field(&self.haf_domain,&self.fft_info,&mut fw_a,&mut fft_status_2a, &mut mem_fw_a, rem_stp)},
-                                || {finish2b = sqrt_fft_fw_field(&self.haf_domain,&self.fft_info,&mut fw_b,&mut fft_status_2b, &mut mem_fw_b, rem_stp)},
-                            )},
+                            || {
+                                join(
+                                    || {
+                                        finish1a = sqrt_fft_fw_g1(
+                                            &self.haf_domain,
+                                            &self.fft_info,
+                                            fl_a,
+                                            &mut fft_status_1a,
+                                            mem_fl_a,
+                                            rem_stp,
+                                        )
+                                    },
+                                    || {
+                                        finish1b = sqrt_fft_fw_g1(
+                                            &self.haf_domain,
+                                            &self.fft_info,
+                                            fl_b,
+                                            &mut fft_status_1b,
+                                            mem_fl_b,
+                                            rem_stp,
+                                        )
+                                    },
+                                )
+                            },
+                            || {
+                                join(
+                                    || {
+                                        finish2a = sqrt_fft_fw_field(
+                                            &self.haf_domain,
+                                            &self.fft_info,
+                                            fw_a,
+                                            &mut fft_status_2a,
+                                            mem_fw_a,
+                                            rem_stp,
+                                        )
+                                    },
+                                    || {
+                                        finish2b = sqrt_fft_fw_field(
+                                            &self.haf_domain,
+                                            &self.fft_info,
+                                            fw_b,
+                                            &mut fft_status_2b,
+                                            mem_fw_b,
+                                            rem_stp,
+                                        )
+                                    },
+                                )
+                            },
                         );
                     }
                     // let finish1a = sqrt_fft_fw_g1(&self.haf_domain,&self.fft_info,&mut self.fl_a,&mut fft_status_1a, &mut self.mem_fl_a);
                     // let finish1b = sqrt_fft_fw_g1(&self.haf_domain,&self.fft_info,&mut self.fl_b,&mut fft_status_1b, &mut self.mem_fl_b);
                     // let finish2a = sqrt_fft_fw_field(&self.haf_domain,&self.fft_info,&mut self.fw_a,&mut fft_status_2a, &mut self.mem_fw_a);
                     // let finish2b = sqrt_fft_fw_field(&self.haf_domain,&self.fft_info,&mut self.fw_b,&mut fft_status_2b, &mut self.mem_fw_b);
-                    if finish1a != finish1b || finish1b != finish2a || finish2a !=finish2b{
+                    if finish1a != finish1b || finish1b != finish2a || finish2a != finish2b {
                         panic!("Not Syncronized");
                     }
                     rem_stp = finish1a.1;
-                    if finish1a.0{
+                    if finish1a.0 {
                         self.status = ReconstructPhase::VecIntegrate(0);
-                    }
-                    else{
+                    } else {
                         *fft_status = fft_status_1a;
                     }
-                }
-                ReconstructPhase::VecIntegrate(ref mut id)=>{
-                    let cnt_stp = std::cmp::min(rem_stp, (self.n-*id)/unt_stp);
+                },
+                ReconstructPhase::VecIntegrate(ref mut id) => {
+                    let cnt_stp = std::cmp::min(rem_stp, (self.n - *id) / unt_stp);
                     let mx_stp = cnt_stp * unt_stp;
-                    let res_a = &mut q_a[*id..(*id+mx_stp)];
-                    let res_b = &mut q_b[*id..(*id+mx_stp)];
-                    let fl_a_slice = &mut self.fl_a[*id..(*id+mx_stp)];
-                    let fl_b_slice = &mut self.fl_b[*id..(*id+mx_stp)];
-                    let fw_a_slice = &mut self.fw_a[*id..(*id+mx_stp)];
-                    let fw_b_slice = &mut self.fw_b[*id..(*id+mx_stp)];
-                    let lagrange = &basis.ell_bar[*id..(*id+mx_stp)];
-                    res_a.par_iter_mut().zip(res_b.par_iter_mut()).zip(
-                    lagrange.par_iter().zip(
-                        fl_a_slice.par_iter_mut().zip(fl_b_slice.par_iter_mut())
-                            .zip(fw_a_slice.par_iter_mut().zip(fw_b_slice.par_iter_mut()))
+                    let res_a = &mut q_a[*id..(*id + mx_stp)];
+                    let res_b = &mut q_b[*id..(*id + mx_stp)];
+                    let fl_a_slice = &mut self.fl_a[*id..(*id + mx_stp)];
+                    let fl_b_slice = &mut self.fl_b[*id..(*id + mx_stp)];
+                    let fw_a_slice = &mut self.fw_a[*id..(*id + mx_stp)];
+                    let fw_b_slice = &mut self.fw_b[*id..(*id + mx_stp)];
+                    let lagrange = &basis.ell_bar[*id..(*id + mx_stp)];
+                    res_a
+                        .par_iter_mut()
+                        .zip(res_b.par_iter_mut())
+                        .zip(
+                            lagrange.par_iter().zip(
+                                fl_a_slice
+                                    .par_iter_mut()
+                                    .zip(fl_b_slice.par_iter_mut())
+                                    .zip(fw_a_slice.par_iter_mut().zip(fw_b_slice.par_iter_mut())),
+                            ),
                         )
-                    ).for_each(|((qa,qb),(li,((fl_a,fl_b),(fw_a,fw_b))))|{
-                        *qa += *fl_a + *li * fw_a;
-                        *qb += *fl_b + *li * fw_b;
-                    });
+                        .for_each(|((qa, qb), (li, ((fl_a, fl_b), (fw_a, fw_b))))| {
+                            *qa += *fl_a + *li * fw_a;
+                            *qb += *fl_b + *li * fw_b;
+                        });
                     *id += mx_stp;
                     rem_stp -= cnt_stp;
-                    if *id >= self.n{
+                    if *id >= self.n {
                         *id = 0;
                         self.status = ReconstructPhase::VecPrepare(0);
                         return (true, rem_stp);
                     }
-                }
+                },
             }
-        };
+        }
         (false, rem_stp)
     }
 }

@@ -141,39 +141,3 @@ first `--log-n` (default 15).
 |---|---|
 | `--log-d` | update sizes, as powers of two (default `0..13`) |
 | `--log-acc` | accumulated sizes for the `fully` shape (default `11,13`) |
-
-## The previous experiments
-
-The experiments that used to be selected by editing `bench_v1.rs` and
-`bench_v2.rs` correspond to these commands:
-
-| Previously | Now |
-|---|---|
-| `Test_Setup(20, 10)` | `setup -- --log-n 20 --repeat 10` |
-| `Test_Preprocess(3)` | `preprocessing -- --log-n 11..22 --repeat 3 --methods ours --serial-max-log-n 18` |
-| `Test_Preprocess_STD(5)` | `provers -- --log-n 10..20 --repeat 5 --workloads dense --provers groth16_7dft` |
-| `Test_ProveTime_d1_moveN(r)` | `updates -- --log-n 10..22 --log-d 0 --repeat r --fully-runs r --schemes semi,fully --half-budget` |
-| `Test_ProveTime_FixN_move_d(20, 10)` | `updates -- --log-n 20 --log-d 0..8 --repeat 10 --schemes semi,fully --half-budget` |
-| `Test_ProveTime_Semi(22, 50, true)` | `updates -- --log-n 10..22:2 --log-d 0 --repeat 50 --schemes semi`, and `--log-n 20 --log-d 0..17` |
-| `Test_ProveTime_Semi(20, 10, false)` | the same with `--repeat 10 --serial`, up to `--log-n 20` |
-| `Test_ProveTime_Fully(22, 20, 32)` | `updates -- --log-n 10..22:2 --log-d 0 --schemes fully --serial --serial-every 32`, and `--log-n 20 --log-d 0..10` |
-| `Test_EveryThing_On_N(12, false, 3, 31)` | `updates -- --log-n 12 --log-d 0 --repeat 3 --serial --serial-every 31` |
-| `examples/semi_dynamic.rs` (before) | `setup`, `preprocessing --methods ours` and `updates --schemes groth16,semi` at `--log-n 12,16,20` |
-| `examples/fully_dynamic.rs` (before) | `updates -- --log-n 20 --log-d 0..4,6,7,8,10 --schemes fully` (it ran `4096 / d` updates per `d`; the default is now `8192 / d`) |
-
-Differences from the previous experiments:
-
-- They reported only means. Now every run is recorded.
-- `Test_ProveTime_FixN_move_d` divided the total `fully` time by `repeat`
-  instead of by the number of updates it ran (up to 8192 at `n = 2^20`), so its
-  `fully` means were too large by that ratio.
-- `Test_ProveTime_Fully` ran no updates, and then divided by zero, when
-  `2^((log n + 6) / 2) / d < k`. Now at least `--repeat` updates run.
-- `Test_Preprocess_STD` measured Groth16 proving on the full thread pool,
-  although its output file was named `NoPara`.
-- `Test_EveryThing_On_N` ran `semi` 32 times as often as `groth16`; now both
-  run `--repeat` times.
-- The thread pool was fixed at 192 threads. Now it is `--threads`, by default
-  all cores.
-- The Groth16 baseline was the 7-DFT prover. In `updates` it is now the 6-DFT
-  prover; the 7-DFT one is still measured in `provers` as `groth16_7dft`.

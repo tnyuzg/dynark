@@ -3,6 +3,7 @@
 use ark_bls12_381::Bls12_381;
 use ark_ec::pairing::Pairing;
 use ark_ff::{One, UniformRand, Zero};
+use ark_std::rand::{rngs::StdRng, SeedableRng};
 use dynark::{
     prepare_verifying_key,
     synthetic_r1cs::{
@@ -11,7 +12,6 @@ use dynark::{
     },
     FullyCheckpoint, FullyDynark, SemiDynark,
 };
-use ark_std::rand::{rngs::StdRng, SeedableRng};
 
 type E = Bls12_381;
 type F = <E as Pairing>::ScalarField;
@@ -37,14 +37,25 @@ fn semi_dynamic_update_verifies() {
     SemiDynark::<E>::preprocess(&uk, &matrices, &instance, &witness, &mut data).unwrap();
 
     let (instance_update, mut witness_update) = generate_update_once::<E>(
-        n, 16, num_instance, &ka, &kb, &ca, &cb, &instance, &witness, &mut rng,
+        n,
+        16,
+        num_instance,
+        &ka,
+        &kb,
+        &ca,
+        &cb,
+        &instance,
+        &witness,
+        &mut rng,
     );
-    let updated = SemiDynark::<E>::update(&uk, &instance_update, &witness_update, &data, &mut rng).unwrap();
+    let updated =
+        SemiDynark::<E>::update(&uk, &instance_update, &witness_update, &data, &mut rng).unwrap();
     assert!(SemiDynark::<E>::verify(&pvk, &updated, &instance).unwrap());
 
     // An update that breaks a constraint must not produce a valid proof.
     witness_update[0].1 += F::one();
-    let tampered = SemiDynark::<E>::update(&uk, &instance_update, &witness_update, &data, &mut rng).unwrap();
+    let tampered =
+        SemiDynark::<E>::update(&uk, &instance_update, &witness_update, &data, &mut rng).unwrap();
     assert!(!SemiDynark::<E>::verify(&pvk, &tampered, &instance).unwrap());
 }
 
@@ -68,7 +79,16 @@ fn fully_dynamic_updates_verify() {
     let mut rebuilds = 0;
     for _ in 0..40 {
         let (instance_update, witness_update) = generate_update::<E>(
-            n, num_update, num_instance, &ka, &kb, &ca, &cb, &mut instance, &mut witness, &mut rng,
+            n,
+            num_update,
+            num_instance,
+            &ka,
+            &kb,
+            &ca,
+            &cb,
+            &mut instance,
+            &mut witness,
+            &mut rng,
         );
         rebuilds += prover.advance_rebuild(&uk, num_update).rebuilds_completed;
         let proof = prover.apply_update(&uk, &instance_update, &witness_update, &mut rng);
@@ -79,7 +99,16 @@ fn fully_dynamic_updates_verify() {
 
     // An update that breaks a constraint must not produce a valid proof.
     let (instance_update, mut witness_update) = generate_update::<E>(
-        n, num_update, num_instance, &ka, &kb, &ca, &cb, &mut instance, &mut witness, &mut rng,
+        n,
+        num_update,
+        num_instance,
+        &ka,
+        &kb,
+        &ca,
+        &cb,
+        &mut instance,
+        &mut witness,
+        &mut rng,
     );
     witness_update[0].1 += F::one();
     let tampered = prover.update(&uk, &instance_update, &witness_update, num_update, &mut rng);
@@ -97,20 +126,35 @@ fn updated_proofs_are_freshly_blinded() {
     let (pk, vk, domain) = SemiDynark::<E>::setup(matrices.clone(), &mut rng).unwrap();
     let uk = SemiDynark::<E>::generate_updating_key(&matrices, &domain, &pk).unwrap();
     let pvk = prepare_verifying_key(&vk);
-    let (_, mut data) = SemiDynark::<E>::prove(&pk, &matrices, &instance, &witness, &mut rng).unwrap();
+    let (_, mut data) =
+        SemiDynark::<E>::prove(&pk, &matrices, &instance, &witness, &mut rng).unwrap();
     SemiDynark::<E>::preprocess(&uk, &matrices, &instance, &witness, &mut data).unwrap();
 
     // The same update twice: both proofs verify, but they differ.
-    let (instance_update, witness_update) =
-        generate_update_once::<E>(n, 4, num_instance, &ka, &kb, &ca, &cb, &instance, &witness, &mut rng);
-    let first = SemiDynark::<E>::update(&uk, &instance_update, &witness_update, &data, &mut rng).unwrap();
-    let second = SemiDynark::<E>::update(&uk, &instance_update, &witness_update, &data, &mut rng).unwrap();
+    let (instance_update, witness_update) = generate_update_once::<E>(
+        n,
+        4,
+        num_instance,
+        &ka,
+        &kb,
+        &ca,
+        &cb,
+        &instance,
+        &witness,
+        &mut rng,
+    );
+    let first =
+        SemiDynark::<E>::update(&uk, &instance_update, &witness_update, &data, &mut rng).unwrap();
+    let second =
+        SemiDynark::<E>::update(&uk, &instance_update, &witness_update, &data, &mut rng).unwrap();
     assert!(SemiDynark::<E>::verify(&pvk, &first, &instance).unwrap());
     assert!(SemiDynark::<E>::verify(&pvk, &second, &instance).unwrap());
     assert_ne!(first, second);
 
     // Likewise for FullyDynark, from two copies of the same prover.
-    let mut prover = FullyDynark::new(FullyCheckpoint::<E>::new(n, &uk, &matrices, &instance, &witness));
+    let mut prover = FullyDynark::new(FullyCheckpoint::<E>::new(
+        n, &uk, &matrices, &instance, &witness,
+    ));
     let mut copy = prover.clone();
     let first = prover.update(&uk, &instance_update, &witness_update, 4, &mut rng);
     let second = copy.update(&uk, &instance_update, &witness_update, 4, &mut rng);
@@ -129,7 +173,8 @@ fn semi_dynamic_update_with_more_variables_than_constraints() {
     let (pk, vk, domain) = SemiDynark::<E>::setup(matrices.clone(), &mut rng).unwrap();
     let uk = SemiDynark::<E>::generate_updating_key(&matrices, &domain, &pk).unwrap();
     let pvk = prepare_verifying_key(&vk);
-    let (_, mut data) = SemiDynark::<E>::prove(&pk, &matrices, &instance, &witness, &mut rng).unwrap();
+    let (_, mut data) =
+        SemiDynark::<E>::prove(&pk, &matrices, &instance, &witness, &mut rng).unwrap();
     SemiDynark::<E>::preprocess(&uk, &matrices, &instance, &witness, &mut data).unwrap();
 
     // Change one nonzero input, and the outputs that depend on it: each row r

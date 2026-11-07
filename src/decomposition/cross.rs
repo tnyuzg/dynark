@@ -22,7 +22,12 @@ pub fn cross_term<E: Pairing>(
     a_lagrange_sparse: &[(usize, E::ScalarField)],
     b_lagrange_sparse: &[(usize, E::ScalarField)],
 ) -> E::G1 {
-    cross_term_with(basis, a_lagrange_sparse, b_lagrange_sparse, CrossTermMethod::Auto)
+    cross_term_with(
+        basis,
+        a_lagrange_sparse,
+        b_lagrange_sparse,
+        CrossTermMethod::Auto,
+    )
 }
 
 /// How [`cross_term_with`] computes the inner sums of the cross term.
@@ -88,8 +93,7 @@ pub fn cross_term_with<E: Pairing>(
             let omega = GeneralEvaluationDomain::<E::ScalarField>::new(n)
                 .unwrap()
                 .group_gen();
-            let (s_b, s_a) =
-                cross_sums_sparse_conv(omega, n, a_lagrange_sparse, b_lagrange_sparse);
+            let (s_b, s_a) = cross_sums_sparse_conv(omega, n, a_lagrange_sparse, b_lagrange_sparse);
             let c_cross_1 = a_lagrange_sparse
                 .par_iter()
                 .zip(s_b.par_iter())
